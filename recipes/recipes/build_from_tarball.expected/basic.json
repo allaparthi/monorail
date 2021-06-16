@@ -1,0 +1,146 @@
+[
+  {
+    "cmd": [
+      "python",
+      "-u",
+      "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
+      "--",
+      "RECIPE_REPO[depot_tools]/gsutil.py",
+      "----",
+      "cp",
+      "gs://chromium-browser-official/chromium-80.0.3987.76.tar.xz",
+      "[START_DIR]/build_dir/chromium-80.0.3987.76.tar.xz"
+    ],
+    "infra_step": true,
+    "name": "gsutil download_url"
+  },
+  {
+    "cmd": [
+      "tar",
+      "-xJf",
+      "[START_DIR]/build_dir/chromium-80.0.3987.76.tar.xz",
+      "-C",
+      "[START_DIR]/build_dir"
+    ],
+    "name": "Extract tarball."
+  },
+  {
+    "cmd": [
+      "python",
+      "-u",
+      "[START_DIR]/build_dir/chromium-80.0.3987.76/build/linux/sysroot_scripts/install-sysroot.py",
+      "--arch=amd64"
+    ],
+    "cwd": "[START_DIR]/build_dir/chromium-80.0.3987.76",
+    "env_suffixes": {
+      "PATH": [
+        "RECIPE_REPO[depot_tools]"
+      ]
+    },
+    "name": "Download sysroot."
+  },
+  {
+    "cmd": [
+      "python",
+      "-u",
+      "[START_DIR]/build_dir/chromium-80.0.3987.76/tools/clang/scripts/build.py",
+      "--skip-checkout",
+      "--without-android",
+      "--without-fuchsia"
+    ],
+    "cwd": "[START_DIR]/build_dir/chromium-80.0.3987.76",
+    "env_suffixes": {
+      "PATH": [
+        "RECIPE_REPO[depot_tools]"
+      ]
+    },
+    "name": "Build clang."
+  },
+  {
+    "cmd": [
+      "python",
+      "-u",
+      "[START_DIR]/build_dir/chromium-80.0.3987.76/tools/gn/bootstrap/bootstrap.py",
+      "--gn-gen-args=is_debug=false enable_nacl=false is_official_build=true enable_distro_version_check=false use_system_libjpeg=true use_v8_context_snapshot=false",
+      "--use-custom-libcxx"
+    ],
+    "cwd": "[START_DIR]/build_dir/chromium-80.0.3987.76",
+    "env": {
+      "AR": "[START_DIR]/build_dir/chromium-80.0.3987.76/third_party/llvm-build/Release+Asserts/bin/llvm-ar",
+      "CC": "[START_DIR]/build_dir/chromium-80.0.3987.76/third_party/llvm-build/Release+Asserts/bin/clang",
+      "CXX": "[START_DIR]/build_dir/chromium-80.0.3987.76/third_party/llvm-build/Release+Asserts/bin/clang++",
+      "LDFLAGS": "-fuse-ld=lld"
+    },
+    "env_suffixes": {
+      "PATH": [
+        "RECIPE_REPO[depot_tools]"
+      ]
+    },
+    "name": "Bootstrap gn."
+  },
+  {
+    "cmd": [
+      "[START_DIR]/build_dir/chromium-80.0.3987.76/third_party/node/update_node_binaries"
+    ],
+    "cwd": "[START_DIR]/build_dir/chromium-80.0.3987.76",
+    "env_suffixes": {
+      "PATH": [
+        "RECIPE_REPO[depot_tools]"
+      ]
+    },
+    "name": "Download nodejs."
+  },
+  {
+    "cmd": [
+      "python",
+      "-u",
+      "[START_DIR]/build_dir/chromium-80.0.3987.76/build/linux/unbundle/replace_gn_files.py",
+      "--system-libraries",
+      "fontconfig",
+      "freetype",
+      "libdrm",
+      "libjpeg",
+      "libwebp",
+      "opus",
+      "snappy"
+    ],
+    "cwd": "[START_DIR]/build_dir/chromium-80.0.3987.76",
+    "env_suffixes": {
+      "PATH": [
+        "RECIPE_REPO[depot_tools]"
+      ]
+    },
+    "name": "Unbundle libraries."
+  },
+  {
+    "cmd": [
+      "ninja",
+      "-C",
+      "out/Release",
+      "chrome/installer/linux"
+    ],
+    "cwd": "[START_DIR]/build_dir/chromium-80.0.3987.76",
+    "env_suffixes": {
+      "PATH": [
+        "RECIPE_REPO[depot_tools]"
+      ]
+    },
+    "name": "Build chrome."
+  },
+  {
+    "cmd": [
+      "vpython",
+      "-u",
+      "RECIPE_MODULE[recipe_engine::file]/resources/fileutil.py",
+      "--json-output",
+      "/path/to/tmp/json",
+      "rmtree",
+      "[START_DIR]/build_dir"
+    ],
+    "infra_step": true,
+    "name": "Cleaning build dir."
+  },
+  {
+    "name": "$result"
+  }
+]

@@ -1,0 +1,66 @@
+cron:
+- description: push labstations for repair tasks
+  url: /internal/cron/push-repair-jobs-for-labstations
+  schedule: every 60 minutes
+
+- description: push bots for admin tasks for need_repair|needs_reset
+  url: /internal/cron/push-bots-for-admin-tasks
+  schedule: every 5 minutes
+  retry_parameters:
+    # We see a small number of jobs fails with code 500 (internal failure of GAE).
+    # As the handler is idempotent & has low time cost, retry won't cause any
+    # side effect. If it fails, it can catch the next cron train.
+    job_retry_limit: 1
+
+- description: push bots for admin tasks for repair_failed
+  url: /internal/cron/push-repair-failed-bots-for-admin-tasks
+  schedule: every 1 hours
+  retry_parameters:
+    # We see a small number of jobs fails with code 500 (internal failure of GAE).
+    # As the handler is idempotent & has low time cost, retry won't cause any
+    # side effect. If it fails, it can catch the next cron train.
+    job_retry_limit: 1
+
+- description: push bots for admin audit tasks
+  url: /internal/cron/push-admin-audit-tasks-for-duts
+  schedule: every sunday 1:00
+  timezone: America/Los_Angeles
+
+- description: sync device configs to inventory file and datastore
+  url: /internal/cron/update-device-configs
+  schedule: every 5 minutes
+
+- description: sync manufacturing configs to inventory file
+  url: /internal/cron/update-manufacturing-configs
+  schedule: every 5 minutes
+
+- description: report metrics related to swarming bots.
+  url: /internal/cron/report-bots
+  # No retry, if it fails it can catch the next cron train.
+  schedule: every 5 minutes
+
+- description: report metrics of Duts in inventory.
+  url: /internal/cron/report-inventory
+  # No retry, if it fails it can catch the next cron train.
+  schedule: every 5 minutes
+
+- description: refresh inventory
+  url: /internal/cron/refresh-inventory
+  schedule: every 1 minutes
+
+- description: push inventory to drone queen
+  url: /internal/cron/push-inventory-to-queen
+  schedule: every 10 minutes
+
+- description: LUCI config datastore cache periodic refresh
+  url: /admin/config/cache/manager
+  schedule: every 10 minutes
+
+- description: tsmon house keeping
+  url: /internal/cron/ts_mon/housekeeping
+  schedule: every 1 minutes
+
+- description: dump stable version to datastore
+  url: /internal/cron/dump-stable-version-to-datastore
+  # No retry, if it fails it can catch the next cron train.
+  schedule: every 3 minutes

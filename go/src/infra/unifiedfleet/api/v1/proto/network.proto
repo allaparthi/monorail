@@ -1,0 +1,69 @@
+// Copyright 2020 The Chromium OS Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+syntax = "proto3";
+
+package unifiedfleet.api.v1.proto;
+
+option go_package = "infra/unifiedfleet/api/v1/proto;ufspb";
+
+import "google/protobuf/timestamp.proto";
+import "go.chromium.org/luci/grpc/proto/google/api/field_behavior.proto";
+import "go.chromium.org/luci/grpc/proto/google/api/resource.proto";
+
+message Nic {
+    option (google.api.resource) = {
+        type: "unified-fleet-system.appspot.com/Nic"
+        pattern: "nics/{nic}"
+    };
+    // Unique serial_number or asset tag
+    // The format will be nics/XXX
+    string name = 1;
+    string mac_address = 2;
+    // Record the last update timestamp of this machine (In UTC timezone)
+    google.protobuf.Timestamp update_time = 3 [
+            (google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+message Vlan {
+    option (google.api.resource) = {
+        type: "unified-fleet-system.appspot.com/Vlan"
+        pattern: "vlans/{vlan}"
+    };
+    // Unique name for the Vlan
+    // The format will be vlans/XXX
+    string name = 1;
+    // The format will be subnet/CIDR.
+    string vlan_address = 2;
+    // The number of IPs that in this vlan
+    int32 capacity_ip = 3;
+    // Record the last update timestamp of this Vlan (In UTC timezone)
+    google.protobuf.Timestamp update_time = 4 [
+        (google.api.field_behavior) = OUTPUT_ONLY];
+
+    // The description of the vlan.
+    string description = 5;
+}
+
+message DHCPConfig {
+    string mac_address = 1;
+    string hostname = 2;
+    string ip = 3;
+    google.protobuf.Timestamp update_time = 4 [
+        (google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// Message contains all dhcp configs.
+message AllDHCPConfigs {
+    repeated DHCPConfig configs = 1;
+}
+
+// IP is an intermediate record object, not an object to be exposed by API.
+message IP {
+    string id = 1;
+    // can be converted to and from the string ip address
+    uint32 ipv4 = 2;
+    string vlan = 3;
+    bool occupied = 4;
+}

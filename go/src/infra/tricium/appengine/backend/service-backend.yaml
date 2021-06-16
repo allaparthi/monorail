@@ -1,0 +1,23 @@
+service: backend
+runtime: go111
+
+handlers:
+
+ - url: /internal/.*
+   script: auto
+   secure: always
+   login: admin
+
+ - url: /.*/internal/.*
+   script: auto
+   secure: always
+   login: admin
+
+ - url: /_ah/push-handlers/notify
+   script: auto
+   secure: always
+   login: admin
+
+ - url: /.*
+   script: auto
+   secure: always

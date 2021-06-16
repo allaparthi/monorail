@@ -1,0 +1,92 @@
+<link rel="import" href="/elements/day-icon.html">
+
+<dom-module id="activity-table">
+  <template>
+    <style>
+    #container {
+      display: grid;
+      /* 8 columns = 7 days of the week + 1 column to label the week */
+      grid-template-columns: auto auto auto auto auto auto auto auto;
+      grid-template-rows: auto;
+      margin: auto;
+      width: 90%;
+      text-align: center;
+      line-height: 150%;
+    }
+    </style>
+
+    <div id="container">
+      <span>&nbsp;<!-- empty column header for weekLabel column --></span>
+      <template is="dom-repeat" items="[[daysOfWeek]]">
+        <span>[[item]]</span>
+      </template>
+
+      <template is="dom-repeat" items="[[weeks]]">
+        <span>[[item.weekLabel]]</span>
+        <template is="dom-repeat" items="[[item.days]]">
+          <day-icon changes="[[item.Changes]]"
+                    bugs="[[item.Bugs]]"
+                    day="[[item.Day]]"
+                    on-tap="_onDaySelected"
+                    selected="[[_computeIsSelected(_day, item.Day)]]">
+          </day-icon>
+        </template>
+      </template>
+    </div>
+  </template>
+</dom-module>
+
+<script>
+'use strict';
+class ActivityTable extends ReduxMixin(Polymer.Element) {
+  static get is() {
+    return 'activity-table';
+  }
+
+  static get properties() {
+    return {
+      daysOfWeek: {
+        type: Array,
+        value() { return 'Mon Tue Wed Thu Fri Sat Sun'.split(' '); }
+      },
+      weeks: {
+        type: Array,
+        value() { return []; },
+      },
+      _day: String,
+    };
+  }
+
+  static get actions() {
+    return {
+      selectDay(day, activityTable) {
+        const detailKey = activityTable.getState().username + ' ' + activityTable.getState().day;
+        return reduxAjax({
+          path: '/_/detail',
+          body: {day},
+          requestType: DAY_DETAILS_REQUEST,
+          successType: DAY_DETAILS_RESPONSE_SUCCESS,
+          errorType: DAY_DETAILS_RESPONSE_ERROR,
+          dispatch: activityTable.dispatch.bind(activityTable),
+        });
+      },
+    };
+  }
+
+  ready() {
+    super.ready();
+    this.addEventListener('state-changed', this.onStateChanged_.bind(this));
+  }
+
+  _computeIsSelected(day, itemDay) {
+    return day == itemDay;
+  }
+
+  _onDaySelected(event) {
+    console.log('_onDaySelected', event);
+    this._day = event.path[2].day;
+    this.dispatch('selectDay', this._day, this);
+  }
+}
+customElements.define(ActivityTable.is, ActivityTable);
+</script>

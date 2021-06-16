@@ -1,0 +1,216 @@
+// Copyright 2019 The Chromium OS Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+syntax = "proto3";
+
+package inventory;
+
+option go_package = "api";
+
+import "go.chromium.org/chromiumos/infra/proto/src/lab/device.proto";
+import "go.chromium.org/chromiumos/infra/proto/src/lab/dut_state.proto";
+import "go.chromium.org/chromiumos/infra/proto/src/device/config.proto";
+import "go.chromium.org/chromiumos/infra/proto/src/manufacturing/config.proto";
+import "device/config_id.proto";
+import "infra/libs/fleet/protos/asset.proto";
+
+// The RPCs below to get/add/update/delete devices support batch operation, and
+// the response contains the detail result for each device. The RPCs return OK
+// code as long as the operation complete, regardless if it succeeds on all
+// devices or not.
+service Inventory {
+  // AddCrosDevices adds new Chrome OS devices to the inventory.
+  rpc AddCrosDevices(AddCrosDevicesRequest) returns (AddCrosDevicesResponse);
+
+  // GetCrosDevices retrieves requested Chrome OS devices from the inventory.
+  rpc GetCrosDevices(GetCrosDevicesRequest) returns (GetCrosDevicesResponse);
+
+  // UpdateDutsStatus updates selected Duts' status labels related to testing.
+  rpc UpdateDutsStatus(UpdateDutsStatusRequest) returns (UpdateDutsStatusResponse);
+
+  // UpdateCrosDevicesSetup updates the selected Chrome OS devices setup data
+  // in the inventory.
+  rpc UpdateCrosDevicesSetup(UpdateCrosDevicesSetupRequest) returns (UpdateCrosDevicesSetupResponse);
+
+  // DeleteCrosDevices delete the selelcted devices from the inventory.
+  rpc DeleteCrosDevices(DeleteCrosDevicesRequest) returns (DeleteCrosDevicesResponse);
+
+  // BatchUpdateDevices updates some specific device properties in batch.
+  rpc BatchUpdateDevices(BatchUpdateDevicesRequest) returns (BatchUpdateDevicesResponse);
+
+  // Add asset information
+  rpc AddAssets(AssetList) returns (AssetResponse);
+
+  // Get asset information
+  rpc GetAssets(AssetIDList) returns (AssetResponse);
+
+  // Delete asset information
+  rpc DeleteAssets(AssetIDList) returns (AssetIDResponse);
+
+  // Update asset information
+  rpc UpdateAssets(AssetList) returns (AssetResponse);
+
+  // DeviceConfigsExists checks if the device_configs exists in the datastore
+  rpc DeviceConfigsExists(DeviceConfigsExistsRequest) returns (DeviceConfigsExistsResponse);
+}
+
+message DeviceConfigsExistsRequest {
+  // device_configs to check
+  repeated device.ConfigId configIds = 1;
+}
+
+message DeviceConfigsExistsResponse {
+  // Exists Map with true/false for the requested configIds
+  // https://developers.google.com/protocol-buffers/docs/proto3#scalar
+  // There is no int(Only int32 and others) scalar type for proto.
+  // int32 maps to int32 in golang.
+  // To iterate over map exists with int values(int i) - use exists[int32(i)]
+  map<int32, bool> exists = 1;
+}
+
+message DeviceOpResult{
+  string id = 1;
+  string hostname = 2;
+  string error_msg = 3;
+}
+
+message DeviceID {
+  oneof id {
+    string hostname = 1;
+    string chromeos_device_id = 2;
+  }
+}
+
+message AddCrosDevicesRequest {
+  repeated lab.ChromeOSDevice devices = 1;
+  bool pick_servo_port = 2;
+}
+
+message AddCrosDevicesResponse {
+  repeated DeviceOpResult passed_devices = 1;
+  repeated DeviceOpResult failed_devices = 2;
+}
+
+message GetCrosDevicesRequest {
+  repeated DeviceID ids = 1;
+  repeated string models = 2;
+}
+
+message HwidData {
+  string sku = 1;
+  string variant = 2;
+}
+
+message ExtendedDeviceData {
+  lab.ChromeOSDevice lab_config = 1;
+  device.Config device_config = 2;
+  manufacturing.Config manufacturing_config = 3;
+  HwidData hwid_data = 4;
+  lab.DutState dut_state = 5;
+}
+
+message GetCrosDevicesResponse {
+  repeated ExtendedDeviceData data = 1;
+  repeated DeviceOpResult failed_devices = 2;
+}
+
+message UpdateDutsStatusRequest {
+  repeated lab.DutState states = 1;
+  string reason = 2;
+  // Currently there's no way to get such info before deployment. So temporarily set them
+  // in the request via DutMeta to backfill hwID and serial number.
+  // TODO: find a better way for these infos.
+  repeated DutMeta dut_metas = 3;
+  repeated LabMeta lab_metas = 4;
+}
+
+message DutMeta {
+  string chromeos_device_id = 1;
+  string serial_number = 2;
+  string hwID = 3;
+}
+
+message LabMeta {
+  string chromeos_device_id = 1;
+  string servo_type = 2;
+  bool smart_usbhub = 3;
+}
+
+message UpdateDutsStatusResponse {
+  repeated DeviceOpResult updated_devices = 1;
+  repeated DeviceOpResult failed_devices = 2;
+}
+
+message UpdateCrosDevicesSetupRequest {
+  repeated lab.ChromeOSDevice devices = 1;
+  string reason = 2;
+  bool pick_servo_port = 3;
+}
+
+message UpdateCrosDevicesSetupResponse {
+  repeated DeviceOpResult updated_devices = 1;
+  repeated DeviceOpResult failed_devices = 2;
+}
+
+message DeleteCrosDevicesRequest {
+  repeated DeviceID ids = 1;
+  message Reason {
+    string bug = 1;
+    string comment = 2;
+  }
+  Reason reason = 2;
+}
+
+message DeleteCrosDevicesResponse {
+  repeated DeviceOpResult removed_devices = 1;
+
+  // Devices cannot be removed for any reason.
+  repeated DeviceOpResult failed_devices = 2;
+}
+
+message DeviceProperty {
+  string hostname = 1;
+  string pool = 2;
+
+  message Rpm {
+    string powerunit_name = 1;
+    string powerunit_outlet = 2;
+  }
+  Rpm rpm = 3;
+}
+
+message BatchUpdateDevicesRequest {
+  repeated DeviceProperty device_properties = 1;
+}
+
+message BatchUpdateDevicesResponse {
+}
+
+message AssetResult {
+  fleet.ChopsAsset asset = 1;
+  string error_msg = 2;
+}
+
+message AssetList {
+  repeated fleet.ChopsAsset asset = 1;
+}
+
+message AssetResponse {
+  repeated AssetResult passed = 1;
+  repeated AssetResult failed = 2;
+}
+
+message AssetIDList {
+  repeated string id = 1;
+}
+
+message AssetIDResult {
+  string id = 1;
+  string error_msg = 2;
+}
+
+message AssetIDResponse {
+  repeated AssetIDResult passed = 1;
+  repeated AssetIDResult failed = 2;
+}

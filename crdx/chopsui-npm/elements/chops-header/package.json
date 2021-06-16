@@ -1,0 +1,31 @@
+{
+  "name": "@chopsui/chops-header",
+  "version": "0.3.1",
+  "description": "A shared header element for Chops.",
+  "author": "The Chromium Authors",
+  "license": "BSD-3-Clause",
+  "main": "dist/chops-header.js",
+  "types": "dist/chops-header.d.ts",
+  "module": "dist/chops-header.js",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "tsc": "tsc -p tsconfig.json",
+    "lint": "tslint -p tsconfig.json"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://chromium.googlesource.com/infra/infra/crdx/chopsui-npm.git"
+  },
+  "dependencies": {
+    "lit-element": "^2.0.0"
+  },
+  "devDependencies": {
+    "@types/chai": "^4.1.7",
+    "@types/mocha": "^5.2.7",
+    "tslint": "^5.18.0",
+    "typescript": "^3.5.2",
+    "webpack-cli": "^3.3.5"
+  }
+}

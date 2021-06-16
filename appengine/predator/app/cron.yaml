@@ -1,0 +1,20 @@
+cron:
+- description: Send ts_mon metrics
+  url: /internal/cron/ts_mon/send
+  schedule: every 1 minutes
+
+- description: Update directory mapping of components every day
+  url: /process/update-component-config
+  schedule: every 24 hours
+
+- description: Update repository url to chrome dependency path every day
+  url: /process/update-repo-to-dep-path
+  schedule: every 24 hours
+
+- description: Update inverted index everyday.
+  url: /process/update-inverted-index
+  schedule: every 24 hours
+
+- description: Update monorail metrics everyday.
+  url: /process/update-monorail-metrics
+  schedule: every 24 hours

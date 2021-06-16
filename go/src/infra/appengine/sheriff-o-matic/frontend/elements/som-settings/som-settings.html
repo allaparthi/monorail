@@ -1,0 +1,15 @@
+<link rel="import" href="../../bower_components/polymer/polymer-element.html">
+
+<link rel="import" href="../../bower_components/iron-localstorage/iron-localstorage.html">
+
+<dom-module id="som-settings">
+  <template>
+    <iron-localstorage
+      name="defaultTree"
+      value="{{defaultTree}}"></iron-localstorage>
+    <iron-localstorage
+      name="collapseByDefault"
+      value="{{collapseByDefault}}"></iron-localstorage>
+  </template>
+  <script src="som-settings.js"></script>
+</dom-module>

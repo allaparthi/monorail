@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<meta name=viewport content="width=device-width, user-scalable=no">
+<title>Chops Status Dashboard</title>
+<style>
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+  body {
+    font-family: arial, sans-serif;
+  }
+  .center-align {
+    text-align: center;
+  }
+  .container {
+    padding: .6px 0px;
+  }
+  .current {
+    width: 20%;
+  }
+  .incident {
+    display: table;
+    position: relative;
+  }
+  .key {
+    padding: 10px 5px;
+  }
+  .shadow {
+    box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
+  }
+  .table-container {
+    float: left;
+    padding: 20px 5px;
+    width: 100%;
+  }
+  .table-footer {
+    height: 20px;
+    font-size: .7em;
+  }
+  .table-footer,
+  th,
+  header {
+    background-color: rgb(205, 223, 250);
+  }
+  header {
+    font-size: 1.5em;
+    height: 60px;
+    padding: 10px;
+    text-align: left;
+    width: 100%;
+  }
+  .left-align {
+    text-align: left;
+    float: left;
+    width: 100%;
+  }
+  main,
+  footer {
+    padding: 25px 50px;
+  }
+  .refresh {
+    text-align: right;
+    float: right;
+    font-size: .6em;
+  }
+  .refresh-message {
+    color: grey;
+  }
+  .right-align {
+    text-align: right;
+    float: right;
+    width: 100%;
+  }
+  .service-name {
+    padding: 5px;
+  }
+  .subtext {
+    font-size: .8em;
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+  }
+  table,
+  td,
+  th {
+    border: 1px solid rgb(205, 223, 250);
+  }
+  th {
+    font-size: .8em;
+    padding: 3px 10px;
+    text-align: center;
+  }
+  tr {
+    height: 30px;
+  }
+  .tree-banner{
+    padding: 10px;
+  }
+  .tree-open {
+    background-color: #8FDF5F;
+  }
+  .tree-closed {
+    background-color: #E98080;
+  }
+</style>
+<link rel="stylesheet" type="text/css" href="/static/icons.css">
+<div class="container">
+  <header class="shadow">Chrome Operations Status Dashboard
+    <span class="refresh">
+        <p class="refresh-message js-countdown"></p>
+        <a href="">(Refresh now)</a>
+    </span>
+  </header>
+  <main>
+    <div class="tree-banner js-tree">
+      <p class="js-tree-status"></p>
+      <a class="js-tree-message" href="https://infra-status.appspot.com"></a>
+    </div>
+    {{$dates := .Dates}}
+    {{$older := .OlderDate}}
+    {{$newer := .NewerDate}}
+
+    {{if .ChopsServices}}
+      <div class="table-container">
+        <p class="subtext">Covered by a Service Level Agreement</p>
+        <table class="shadow">
+          <tr>
+            <th class="current">Current Status</th>
+            {{range $dates}}
+              <th class="js-date"></th>
+            {{end}}
+          </tr>
+          {{range .ChopsServices}}
+          {{$name := .Service.Name}}
+            <tr>
+              <td class="js-{{$name}}">
+                <a class="service-name" href={{.Service.SLA}}>{{.Service.Name}}</a>
+              </td>
+              <td class="table-body js-{{$name}}-incidents" colspan="7"></td>
+            </tr>
+          {{end}}
+          <tr class="table-footer subtext">
+            <td colspan="8" class="center-align">
+              <span class="js-older-link"></span>
+              <span class="js-newer-link"></span>
+            </td>
+          </tr>
+        </table>
+      </div>
+    {{end}}
+
+    {{if .NonSLAServices}}
+      <div class="table-container">
+        <p class="subtext">Not covered by a Service Level Agreement</p>
+        <table class="shadow">
+          <tr>
+            <th class="current">Current Status</th>
+            {{range .Dates}}
+              <th class="js-date-nonsla"></th>
+            {{end}}
+          </tr>
+          {{range .NonSLAServices}}
+          {{$name := .Service.Name}}
+            <tr>
+              <td class="js-{{$name}}"><span class="service-name">{{.Service.Name}}</span></td>
+              <td class="table-body js-{{$name}}-incidents" colspan="7"></td>
+            </tr>
+          {{end}}
+          <tr class="table-footer subtext">
+            <td colspan="8" class="center-align">
+              <span class="js-older-link"></span>
+              <span class="js-newer-link"></span>
+            </td>
+          </tr>
+        </table>
+      {{end}}
+      </div>
+     <p class="left-align subtext">All dates shown are using the local timezone</p>
+     <p class="key subtext left-align">
+      <i class="green circle"></i> No issues<br/>
+      <i class="yellow circle"></i> Service disruption<br/>
+      <i class="red circle"></i> Service outage<br/>
+    </p>
+
+  </main>
+  <footer class="right-align subtext">
+    <a href="https://goo.gl/forms/8w2yEws8S8K7wlrq1">Send feedback</a>
+  </footer>
+</div>
+<script src="/static/add-incidents.js"></script>
+<script src="/static/tree-status.js"></script>
+<script src="/static/add-nav.js"></script>
+<script>
+  (function() {
+    const RELOAD_TIME_INC = 60 * 1000;
+    const RELOAD_TIME_MIN = 5;
+    let status = new window.__StatusFetcher();
+    status.fetch();
+    window.__addIncidents({{.}});
+    window.__addPrevNext({{.LastDate}});
+    let countdown = function(lastRefresh) {
+      if (lastRefresh === RELOAD_TIME_MIN) {
+        window.location.reload();
+      }
+      let message = document.querySelector('.js-countdown');
+      message.textContent = `Auto-refreshed ${lastRefresh} min ago `;
+      window.setTimeout(() => { countdown(lastRefresh + 1); }, RELOAD_TIME_INC);
+    };
+    countdown(0);
+  })();
+</script>

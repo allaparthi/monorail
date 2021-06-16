@@ -1,0 +1,474 @@
+// Copyright 2018 The Chromium OS Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+syntax = "proto2";
+
+package chrome.chromeos_infra.skylab.proto.inventory;
+option go_package = "inventory";
+
+// This proto definition describes the on-disk configuration data describing the
+// ChromeOS skylab inventory. This is _not_ intended to be used as an API
+// definition between services. As a result, fields are marked as required
+// whenever strict checking is desired, and the proto definition can change
+// relatively freely in the future.
+
+import "common.proto";
+
+// NEXT TAG: 4
+message Device {
+  // Each of these must contain a 'CommonDeviceSpecs common' field.
+  // We will use this informal composition based sharing rather than proto
+  // extensions because extensions are unwieldy, and we really want composition
+  // not inhertence.
+  oneof device {
+    DeviceUnderTest dut = 1;
+    ServoHostDevice servo_host = 2;
+    ChameleonDevice chameleon = 3;
+  };
+}
+
+// NEXT TAG: 2
+message DeviceUnderTest {
+  required CommonDeviceSpecs common = 1;
+  optional RemovalReason removal_reason = 2;
+}
+
+// NEXT TAG: 2
+message ServoHostDevice {
+  required CommonDeviceSpecs common = 1;
+  optional string version = 2;
+}
+
+// NEXT TAG: 2
+message ChameleonDevice {
+  required CommonDeviceSpecs common = 1;
+}
+
+//
+// Keep sorted by field name.
+//
+// NEXT TAG: 12
+message CommonDeviceSpecs {
+  // These are opaque keyvals for skylab services. Devices may arbitrarily
+  // define any attributes they want.
+  repeated KeyValue attributes = 9;
+
+  // A device may be locked for multiple reasons by multiple people. All locks
+  // need to be removed for the device to go back into circulation.
+  repeated DeviceLock device_locks = 6;
+
+  optional Environment environment = 10;
+
+  required string hostname = 2;
+
+  // An invariant property corresponding to the hardware deployed for this
+  // device.
+  optional string hwid = 3;
+
+  required string id = 1;
+
+  // The scheduling system uses these to target jobs at the right kinds of
+  // devices.
+  optional SchedulableLabels labels = 8;
+
+  optional Location location = 5;
+
+  // Deprecated: This is needed for the master AFE in the autotest infra to
+  // forward RPCs to the relevant shard for a device.
+  // Not to be used in skylab.
+  optional Shard owner_shard = 7 [deprecated = true];
+
+  // An invariant about the distros inventory tag associated with the device.
+  // For ChromeOS devices, this can be read off of vboot.
+  optional string serial_number = 4;
+
+  // Similar to a useless machine, if set to true, automatic inventory
+  // updates should set this back to false.  This can be used to test
+  // that automated updates are firing correctly.
+  optional bool useless_switch = 11;
+}
+
+// RemovalReason describes the reason for a DUT being removed from running
+// tasks. See also go/skylab-dut-removal-reason NEXT TAG: 4
+message RemovalReason {
+  // bug is a link to a bug in crbug.com or other bug tracker.  Required.
+  optional string bug = 1;
+  // comment should be a short comment to provide quick context for
+  // the removal reason.  This should not be used as a replacement for
+  // keeping the bug up to date with context.
+  optional string comment = 2;
+  // expire_time indicates when the reason for removal should be
+  // revisited so that DUTs don't get forgotten.  Required.
+  optional Timestamp expire_time = 3;
+}
+
+// NEXT TAG: 5
+message Location {
+  required PhysicalLab lab = 1;
+  required int32 row = 2;
+  required int32 rack = 3;
+  required int32 host = 4;
+}
+
+// NEXT TAG: 2
+message PhysicalLab {
+  required string name = 1;
+}
+
+// A DeviceLock is a generic way of pulling any lab device out of commission
+// temporarily. This allows us to quickly take out a device without deleting it
+// from inventory. The exact effect of locking a device varies by the type of
+// device and services involved.
+// NEXT TAG: 6
+message DeviceLock {
+  required bool lock = 1 [deprecated = true];
+  // This field is informational only. Do not assume this as a real user
+  // identity in any auth domain.
+  required string locked_by = 2;
+  required string lock_reason = 3;
+  required Timestamp begin_time = 4;
+  required Timestamp expire_time = 5;
+  required int32 lock_id = 6 [deprecated = true];
+  required string id = 7;
+}
+
+// NEXT TAG: 2
+message Shard {
+  required string hostname = 1;
+}
+
+// These labels are used for scheduling decisions in skylab. They should be
+// semantically known to the inventory service to allow filtering based on them.
+// (i.e., no "extra_labels" field down here)
+//
+// Keep sorted by field name.
+//
+// NEXT TAG: 34
+message SchedulableLabels {
+  // Whether this device supports ARC execution environment.
+  optional bool arc = 20;
+
+  // TODO(pprabhu) This should be an enum shared with stable_versions.proto
+  // But there are 171 of them...
+  optional string board = 2;
+
+  // This matches the brand id in chromiumos/infra/proto/src/device/brand_id.proto
+  optional string brand = 26;
+
+  optional HardwareCapabilities capabilities = 5;
+
+  // Similar to device phases, but for the cr50 module onboard.
+  //
+  // NEXT TAG: 3
+  enum CR50_Phase {
+    CR50_PHASE_INVALID = 0;
+    CR50_PHASE_PREPVT = 1;
+    CR50_PHASE_PVT = 2;
+  }
+  optional CR50_Phase cr50_phase = 22;
+
+  // Example: cr50-ro-keyid:prod
+  // Example: cr50-ro-keyid:0xaa66150f
+  optional string cr50_ro_keyid = 28;
+
+  // Example: cr50-ro-version:0.0.10
+  optional string cr50_ro_version = 29;
+
+  // Example: cr50-rw-keyid:prod
+  // Example: cr50-rw-keyid:0xde88588d
+  optional string cr50_rw_keyid = 30;
+
+  // Example:cr50-rw-version:0.3.20
+  optional string cr50_rw_version = 31;
+
+  // critical_pools are pool labels that the builders are dependent on, and that
+  // the cros-infra team is responsible for managing explicitly. All other pool
+  // labels used for adhoc labeling of DUTs go into self_serve_pools.
+  //
+  // NEXT TAG: 9
+  enum DUTPool {
+    DUT_POOL_INVALID = 0;
+    DUT_POOL_CQ = 1;
+    DUT_POOL_BVT = 2;
+    DUT_POOL_SUITES = 3;
+    DUT_POOL_CTS = 4;
+    DUT_POOL_CTS_PERBUILD = 5;
+    DUT_POOL_CONTINUOUS = 6;
+    DUT_POOL_ARC_PRESUBMIT = 7;
+    DUT_POOL_QUOTA = 8;
+  }
+  repeated DUTPool critical_pools = 3;
+
+  // NEXT TAG: 3
+  enum CTSABI {
+    CTS_ABI_INVALID = 0;
+    CTS_ABI_ARM = 1;
+    CTS_ABI_X86 = 2;
+  }
+  repeated CTSABI cts_abi = 14;
+
+  // NEXT TAG: 3
+  enum CTSCPU {
+    CTS_CPU_INVALID = 0;
+    CTS_CPU_ARM = 1;
+    CTS_CPU_X86 = 2;
+  }
+  repeated CTSCPU cts_cpu = 21;
+
+  // NEXT TAG: 2
+  enum ECType {
+    EC_TYPE_INVALID = 0;
+    EC_TYPE_CHROME_OS = 1;
+  }
+  optional ECType ec_type = 10;
+
+  repeated string hwid_component = 33;
+
+  // crbug.com/994200: this matches to label "sku" in autotest.
+  optional string hwid_sku = 27;
+
+  optional string model = 13;
+
+  optional string sku = 25;
+
+  // NEXT TAG: 6
+  enum OSType {
+    OS_TYPE_INVALID = 0;
+    OS_TYPE_ANDROID = 1;
+    OS_TYPE_CROS = 2;
+    OS_TYPE_JETSTREAM = 3;
+    OS_TYPE_MOBLAB = 4;
+    OS_TYPE_LABSTATION = 5;
+  }
+  optional OSType os_type = 15;
+
+  optional Peripherals peripherals = 19;
+
+  // Devices go through the phases EVT -> DVT -> PVT during early development.
+  // Post launch devices are in the MP phase.
+  // Certain phases end up having to be repeated as hardware evolves. Leave some
+  // scope for iteration within phases.
+  //
+  // NEXT TAG: 9
+  enum Phase {
+    PHASE_INVALID = 0;
+    PHASE_EVT = 1;
+    PHASE_EVT2 = 2;
+    PHASE_DVT = 3;
+    PHASE_DVT2 = 4;
+    PHASE_PVT = 5;
+    PHASE_PVT2 = 6;
+    PHASE_PVT3 = 7;
+    PHASE_MP = 8;
+  }
+  optional Phase phase = 16;
+
+  // TODO(pprabhu) This should be an enum shared with stable_versions.proto
+  // But there are 171 of them...
+  optional string platform = 1;
+
+  optional string reference_design = 24;
+
+  repeated string self_serve_pools = 4;
+
+  optional TestCoverageHints test_coverage_hints = 18;
+
+  // useless_switch does nothing.  Like a useless machine, if set to
+  // true, automatic label updates should set this back to false.
+  // This can be used to test that automated updates are firing
+  // correctly.
+  optional bool useless_switch = 23;
+
+  repeated string variant = 17;
+
+  // Come from manufacturing config: crbug.com/1046971
+  optional string wifi_chip = 32;
+}
+
+// Keep sorted by field name.
+//
+// NEXT TAG: 20
+message HardwareCapabilities {
+  optional bool atrus = 17;
+  optional bool bluetooth = 7;
+
+  // NEXT TAG: 5
+  enum Carrier {
+    CARRIER_INVALID = 0;
+    CARRIER_ATT = 1;
+    CARRIER_TMOBILE = 2;
+    CARRIER_VERIZON = 3;
+    CARRIER_SPRINT = 4;
+  }
+  optional Carrier carrier = 16;
+
+  optional bool detachablebase = 12;
+  // Indicating if the device has fingerprint sensor.
+  optional bool fingerprint = 19;
+  optional bool flashrom = 14;
+  optional string gpu_family = 3;
+  optional string graphics = 4;
+  optional bool hotwording = 15;
+  optional bool internal_display = 8;
+  optional bool lucidsleep = 13;
+  optional string modem = 1;
+  optional string power = 6;
+  optional string storage = 5;
+  optional string telephony = 2;
+  optional bool webcam = 9;
+  optional bool touchpad = 10;
+  optional bool touchscreen = 18;
+
+  // NEXT TAG: 13
+  enum VideoAcceleration {
+    VIDEO_ACCELERATION_INVALID = 0;
+    VIDEO_ACCELERATION_H264 = 1;
+    VIDEO_ACCELERATION_ENC_H264 = 2;
+    VIDEO_ACCELERATION_VP8 = 3;
+    VIDEO_ACCELERATION_ENC_VP8 = 4;
+    VIDEO_ACCELERATION_VP9 = 5;
+    VIDEO_ACCELERATION_ENC_VP9 = 6;
+    VIDEO_ACCELERATION_VP9_2 = 7;
+    VIDEO_ACCELERATION_ENC_VP9_2 = 8;
+    VIDEO_ACCELERATION_H265 = 9;
+    VIDEO_ACCELERATION_ENC_H265 = 10;
+    VIDEO_ACCELERATION_MJPG = 11;
+    VIDEO_ACCELERATION_ENC_MJPG = 12;
+  }
+  repeated VideoAcceleration video_acceleration = 11;
+}
+
+// Peripherals list peripherals connected to the device in the lab.
+//
+// These peripherals are not addressable as devices themselves. For peripherals
+// that have complex connections with devices, create a separate device and
+// connections with other devices.
+//
+// Keep sorted by field names.
+//
+// NEXT TAG: 22
+message Peripherals {
+  optional bool audio_board = 6;
+  // The DUT is housed in an audio box to record / replay audio for audio
+  // testing.
+  optional bool audio_box = 7;
+  optional bool audio_loopback_dongle = 1;
+  // Is this device connected to a chameleon (GVC head).
+  optional bool chameleon = 5;
+
+  // NEXT TAG: 9
+  enum ChameleonType {
+    CHAMELEON_TYPE_INVALID = 0;
+    CHAMELEON_TYPE_BT_HID = 1;
+    CHAMELEON_TYPE_DP = 2;
+    CHAMELEON_TYPE_DP_HDMI = 3;
+    CHAMELEON_TYPE_VGA = 4;
+    CHAMELEON_TYPE_HDMI = 5;
+    CHAMELEON_TYPE_BT_BLE_HID = 6;
+    CHAMELEON_TYPE_BT_A2DP_SINK = 7;
+    CHAMELEON_TYPE_BT_PEER = 8;
+  }
+  repeated ChameleonType chameleon_type = 10;
+
+  // Whether DUT WiFi antenna is connected conductively or OTA.
+  optional bool conductive = 11;
+  optional bool huddly = 9;
+  optional bool mimo = 8;
+  // Whether a DUT has a special camera (Logitech PTZ Pro 2) connected to it.
+  optional bool ptzpro2 = 12;
+  optional bool servo = 2;
+  optional PeripheralState servo_state = 15;
+  optional string servo_type = 17;
+  optional bool smart_usbhub = 21;
+  optional bool stylus = 3;
+  optional bool camerabox = 13;
+  // Is this device inside a hermetic wifi cell.
+  optional bool wificell = 4;
+
+  // Indicate if the device is in a pre-setup environment with 802.11ax routers.
+  // crbug.com/1044786
+  optional bool router_802_11ax = 14;
+
+  // Indicate how many working btpeers for this device: crbug.com/1052511
+  optional int32 working_bluetooth_btpeer = 16;
+
+  // Facing of DUT's camera to be tested whose FOV should cover chart tablet's
+  // screen in camerabox setup.
+  // NEXT TAG: 3
+  enum CameraboxFacing {
+    CAMERABOX_FACING_UNKNOWN = 0;
+    CAMERABOX_FACING_BACK = 1;
+    CAMERABOX_FACING_FRONT = 2;
+  }
+  optional CameraboxFacing camerabox_facing = 18;
+
+  optional HardwareState storage_state = 19;
+  optional HardwareState servo_usb_state = 20;
+}
+
+// copy of enum from dut_state.proto
+enum PeripheralState {
+  UNKNOWN = 0;
+  WORKING = 1;
+  NOT_CONNECTED = 2;
+  BROKEN = 3;
+  WRONG_CONFIG = 4;
+}
+
+// copy of enum from dut_state.proto
+enum HardwareState {
+  HARDWARE_UNKNOWN = 0;
+  HARDWARE_NORMAL = 1;
+  HARDWARE_ACCEPTABLE = 2;
+  HARDWARE_NEED_REPLACEMENT = 3;
+}
+
+// These labels are used by the CI system to provide test coverage hints to
+// Skylab.
+//
+// TODO(pprabhu) Most of these should instead be self-servo pools.
+// Migrate the test requests to use pools and then deprecate these fields in
+// favor of pools.
+//
+// Keep sorted by field name.
+//
+// NEXT TAG: 14
+message TestCoverageHints {
+  optional bool chaos_dut = 7;
+  optional bool chaos_nightly = 13;
+  optional bool chromesign = 11;
+
+  // Related to sparse CTS testing. See b/70309087
+  // NEXT TAG: 4
+  enum CTSSparse {
+    CTS_SPARSE_INVALID = 0;
+    CTS_SPARSE_2 = 1;
+    CTS_SPARSE_3 = 2;
+    CTS_SPARSE_5 = 3;
+  }
+  repeated CTSSparse cts_sparse = 1;
+
+  // Whether the DUT has the hangout app installed.
+  // This is a software feature of the DUT that is not provisioned as part of
+  // the test setup, hence the DUT must be labelled explicitly as supporting
+  // this feature.  Should probably be a SoftwareFeature for the DUT.
+  optional bool hangout_app = 9;
+  // Whether the DUT has the meet app installed.
+  // This is a software feature of the DUT that is not provisioned as part of
+  // the test setup, hence the DUT must be labelled explicitly as supporting
+  // this feature.  Should probably be a SoftwareFeature for the DUT.
+  optional bool meet_app = 10;
+  optional bool recovery_test = 8;
+  optional bool test_audiojack = 3;
+  optional bool test_hdmiaudio = 2;
+  optional bool test_usbaudio = 4;
+  optional bool test_usbprinting = 5;
+  optional bool usb_detect = 6;
+  optional bool use_lid = 12;
+}
+
+// NEXT TAG: 3
+message KeyValue {
+  required string key = 1;
+  optional string value = 2;
+}

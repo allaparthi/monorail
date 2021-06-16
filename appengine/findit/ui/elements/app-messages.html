@@ -1,0 +1,285 @@
+<link rel="import" href="/bower_components/polymer/polymer.html">
+<link rel="import" href="/bower_components/paper-button/paper-button.html">
+<link rel="import" href="/bower_components/paper-dialog/paper-dialog.html">
+
+<dom-module id="app-messages">
+  <template>
+    <style>
+      .message-container {
+        min-width: 500px;
+        max-width: 800px;
+        min-height: 100px;
+        max-height: 300px;
+        overflow-y: auto;
+      }
+
+      table {
+        border-collapse: collapse;
+        border: 1px solid gray;
+      }
+
+      table td, table th {
+        padding: 5px;
+        border: 1px solid gray;
+      }
+
+      .red-text {
+        font-weight: bold;
+        color: red;
+      }
+    </style>
+
+    <paper-dialog id="dialog" class="">
+      <h2>[[_getMessageTitile(_message)]]</h2>
+      <div class="message-container">
+        <template is="dom-if" if="[[_isPredefinedMessage(_message, 100)]]">
+          <div>
+            Please log in with your @google.com account first to schedule an analysis or give feedback on the analysis result.
+            <br> If already logged in, please try refreshing the page for a new XSRF token which expires in one hour.
+            <br>
+            <br> Meanwhile, all previous analyses are public and searchable.
+            <br>
+          </div>
+        </template>
+        <template is="dom-if" if="[[_isPredefinedMessage(_message, 200)]]">
+          <div>
+            The total score is a sum of scores for all hints.
+            <br> Rules to set a score to an hint:
+            <ul>
+              <li>5: The CL added or deleted a file that appears in the failure log.</li>
+              <li>4: The CL modified a line of a file and that line appears in the failure log.</li>
+              <li>2: The CL modified a file that appears in the failure log.</li>
+              <li>1: The CL modified a file that is related to another file appearing in the failure log. (eg: file.h was changed
+                and file_unittest.cc or file_impl.cc appeared in the log.)</li>
+              <li>1: The CL rolled a dependency within src/DEPS and a file of that dependency appears in the failure log. (eg:
+                third_party/dep was changed in src/DEPS and third_party/dep/f.cpp appeared in the log.)</li>
+            </ul>
+            (More rules will be added when implemented.)
+          </div>
+        </template>
+        <template is="dom-if" if="[[_isPredefinedMessage(_message, 300)]]">
+          <div>
+            Want to analyze a specific range?
+            <br>
+            <ul>
+              <li>Choose a commit position range and enter it into the Lower bound/Upper bound text fields</li>
+              <li>To specify a single point, enter a commit position in either lower/upper bound, or enter the same commit position
+                for both</li>
+              <li>Optional: specify the number of iterations to rerun swarming. Findit tasks have a maximum of three hours to
+                complete, so please use values below 800 to ensure the task completes successfully
+                <li>Press Analyze range</li>
+                <li>If the lower bound is found to be stable and upper bound flaky, Findit will attempt to identify the culprit
+                  CL that caused the flakiness</li>
+            </ul>
+          </div>
+        </template>
+        <template is="dom-if" if="[[_isPredefinedMessage(_message, 400)]]">
+          <div>
+            <h3>Regression Range Analysis Status</h3>
+            Swarming tasks are triggered on a series of builds to identify the build that may contain the CL that introduced test flakiness
+            <ul>
+              <li>Pending: A request for a build-level analysis has been made, however tasks have not yet begun</li>
+              <li>Running: Build-level analysis is in progress</li>
+              <li>Completed: Build-level analysis is complete</li>
+              <li>Error: The analysis was halted due to an unexpected error</li>
+            </ul>
+          </div>
+          <div>
+            <h3>Culprit Analysis Status</h3>
+            Try jobs are triggered on the regression range of a build suspected to contain the CL that introduced test flakiness.
+            <ul>
+              <li>Running: A suspected build number has been identified and try jobs analysis is running</li>
+              <li>Completed: Try job analysis is complete</li>
+              <li>Error: The analysis was halted due to an unexpected error</li>
+              <li>Skipped: Try jobs will not be triggered either due to no suspected build being identified, insufficient confidence
+                in the suspected build, or build-level analysis ending in error</li>
+              <li>(Blank): Try job analysis has not yet begun, since analysis at the build level is still in progress or ended
+                in error</li>
+            </ul>
+          </div>
+        </template>
+        <template is="dom-if" if="[[_isPredefinedMessage(_message, 500)]]">
+          <div>
+            <h3>Regression</h3>
+            A waterfall build that contains the culprit followed by a confidence score [0%, 100%].
+            <br>
+            For a CQ flake, it is the latest build of the matching Waterfall builder upon flake report.
+          </div>
+          <div>
+            <h3>Culprit</h3>
+            The commit that makes the test flaky followed by a confidence score [0%, 100%].
+            <br>
+            If the confidence score is high enough, the Gerrit CL will be notified.
+          </div>
+        </template>
+        <template is="dom-if" if="[[_isPredefinedMessage(_message, 600)]]">
+          <div>
+            <h3>Simple search:</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>Filter</th>
+                  <th>Example</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>binary</td>
+                  <td>
+                    <a href="/p/chromium/flake-portal/flakes?flake_filter=binary::browser_tests">binary==browser_tests</a> matches tests in all steps using browser_tests binary, e.g. "browser_tests", "network_service_browser_tests on Mac", etc<br>
+                  </td>
+                </tr>
+                <tr>
+                  <td>bucket</td>
+                  <td>
+                    <a href="/p/chromium/flake-portal/flakes?flake_filter=bucket::try">bucket==try</a> <br>
+                  </td>
+                </tr>
+                <tr>
+                  <td>builder</td>
+                  <td>
+                    <a href="/p/chromium/flake-portal/flakes?flake_filter=builder::win7_chromium_rel_ng">builder==win7_chromium_rel_ng</a> <br>
+                  </td>
+                </tr>
+                <tr>
+                  <td>component</td>
+                  <td>
+                    <a href="/p/chromium/flake-portal/flakes?flake_filter=component::Blink>Accessibility">component==Blink>Accessibility</a> matches tests whose source files match COMPONENT definition in <a href="https://cs.chromium.org/chromium/src/third_party/blink/renderer/modules/accessibility/OWNERS?q=COMPONENT">OWNERS</a> file. If an OWNERS file in a sub-directory define another sub-component, those tests for the sub-component are NOT included here<br>
+                  </td>
+                </tr>
+                <tr>
+                  <td>directory</td>
+                  <td>
+                    <a href="/p/chromium/flake-portal/flakes?flake_filter=directory::base/">directory==base/</a> matches tests defined in the source file within the directory base/. Arbitrary level of directories are supported except the root directory of the code base<br>
+                  </td>
+                </tr>
+                <tr>
+                  <td>master</td>
+                  <td>
+                    <a href="/p/chromium/flake-portal/flakes?flake_filter=master::tryserver.chromium.android">master==tryserver.chromium.android</a> <br>
+                  </td>
+                </tr>
+                <tr>
+                  <td>parent_component</td>
+                  <td>
+                    <a href="/p/chromium/flake-portal/flakes?flake_filter=parent_component::Blink>Accessibility">parent_component==Blink>Accessibility</a> matches tests whose component is Blink>Accessibility or a sub-component of Blink>Accessibility.<br>
+                  </td>
+                </tr>
+                <tr>
+                  <td>source</td>
+                  <td>
+                    <a href="/p/chromium/flake-portal/flakes?flake_filter=source::base/hash_unittest.cc">source==base/hash_unittest.cc</a> matches tests defined in the source file base/hash_unittest.cc<br>
+                  </td>
+                </tr>
+                <tr>
+                  <td>step</td>
+                  <td>
+                    <a href="/p/chromium/flake-portal/flakes?flake_filter=step::browser_tests">step==browser_tests</a> matches tests in the step on Milo "browser_tests" but not "browser_tests on Mac"<br>
+                  </td>
+                </tr>
+                <tr>
+                  <td>suite</td>
+                  <td>
+                    <a href="/p/chromium/flake-portal/flakes?flake_filter=suite::GCMConnectionHandlerImplTest">suite==GCMConnectionHandlerImplTest</a> matches gtest GCMConnectionHandlerImplTest.*<br>
+                    <a href="/p/chromium/flake-portal/flakes?flake_filter=suite::FullscreenVideoTest">suite==FullscreenVideoTest</a> matches Java tests *.FullscreenVideoTest#test*<br>
+                    <a href="/p/chromium/flake-portal/flakes?flake_filter=suite::third_party/blink/web_tests/fast/events">suite==third_party/blink/web_tests/fast/events</a> matches Blink layout tests fast/events/*. The immediate directory of a Blink layout tests is chosen as the suite name of the test<br>
+                    <a href="/p/chromium/flake-portal/flakes?flake_filter=suite::webgl_conformance_tests">suite==webgl_conformance_tests</a> matches Telemetry-based gpu tests gpu_tests.webgl_conformance_integration_test.* Canonical step name is used as suite for Telemetry-based gpu tests. <br>
+                  </td>
+                </tr>
+                <tr>
+                  <td>test_type</td>
+                  <td>
+                    <a href="/p/chromium/flake-portal/flakes?flake_filter=test_type::browser_tests">test_type==browser_tests</a> matches tests in the step "browser_tests", "browser_tests on Mac", etc<br>
+                  </td>
+                </tr>
+                <tr>
+                  <td>watchlist</td>
+                  <td>
+                    <a href="/p/chromium/flake-portal/flakes?flake_filter=watchlist::accessibility">watchlist==accessibility</a> matches tests whose source files match the accessibility watchlist in src/WATCHLISTS<br>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div>
+            <h3>Advanced Search:</h3>
+            You may search flakes with arbitrary combination of the above supported filters. But at least one "==" filter should be given.<br>
+            <span class="red-text">NOTE</span>: Searching for a specific test with filters are not supported. <br>
+            <br>
+
+            The search results will only include flakes that: <br>
+            * The flake match ALL "=" filters<br>
+            * The flake does NOT match ANY "!=" filters<br>
+            <br>
+
+            Examples:<br>
+            * <a href="/p/chromium/flake-portal/flakes?flake_filter=test_type::browser_tests@test_type::network_service_browser_tests">test_type==browser_tests, test_type==network_service_browser_tests</a> matches tests flaking in both browser_tests and network_service_browser_tests<br>
+            * <a href="/p/chromium/flake-portal/flakes?flake_filter=-test_type::browser_tests@test_type::network_service_browser_tests">test_type!=browser_tests, test_type==network_service_browser_tests</a> matches tests flaking in network_service_browser_tests but NOT in browser_tests<br>
+          </div>
+        </template>
+        <template is="dom-if" if="[[_isCustomizedMessage(_message)]]">
+          <template is="dom-if" if="[[!_message.preFormat]]">
+            <div style="text-align: center">
+              [[_message.content]]
+            </div>
+          </template>
+          <template is="dom-if" if="[[_message.preFormat]]">
+            <pre>[[_message.content]]</pre>
+          </template>
+        </template>
+      </div>
+      <div class="buttons">
+        <paper-button dialog-dismiss>Close</paper-button>
+      </div>
+    </paper-dialog>
+  </template>
+
+  <script>
+    (function () {
+      'use strict';
+
+      var messageTitles = {
+        100: 'No Permission',
+        200: 'Score Explanation',
+        300: 'Choose a range or point to analyze',
+        400: 'Analysis Status',
+        500: 'Flake Analysis Findings',
+        600: 'Flake Searching',
+      };
+
+      Polymer({
+        is: 'app-messages',
+
+        created: function () {
+          document.addEventListener('message', function (e) {
+            console.log('Received one message event.');
+            console.log(e);
+            this.$.dialog.close();
+            this._message = e.detail;
+            this.$.dialog.open();
+          }.bind(this));
+        },
+
+        properties: {
+          _message: {
+            type: Object,
+            value: undefined,
+          },
+        },
+
+        _getMessageTitile: function (message) {
+          return message.title || messageTitles[message.messageId] || 'Message';
+        },
+
+        _isPredefinedMessage: function (message, id) {
+          return Boolean(message && messageTitles[message.messageId] && message.messageId == id);
+        },
+
+        _isCustomizedMessage: function (message) {
+          return Boolean(message && (!message.messageId || !messageTitles[message.messageId]));
+        },
+      });
+    })();
+  </script>
+</dom-module>

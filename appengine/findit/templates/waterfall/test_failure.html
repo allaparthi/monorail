@@ -1,0 +1,73 @@
+{% extends "build_failure.html" %}
+
+{% block title %}Test{% endblock title %}
+
+{% block head %}
+<script src="/bower_components/webcomponentsjs/webcomponents-lite.js"></script>
+<link rel="import" href="/ui/elements/analysis/test/non-reliable-failures.html">
+<link rel="import" href="/ui/elements/analysis/test/reliable-failures.html">
+{% endblock head %}
+
+{% block constant %}
+  findit.analysisResult = {{analysis_result | tojson | safe}};
+{% endblock constant %}
+
+{% block failure_classification %}
+  var reliableFailures = [];
+  var flakyFailures = [];
+  var unclassifiedFailures = [];
+  $.each(findit.analysisResult, function(step_name, step_results) {
+    $.each(step_results.results, function(category, results) {
+      var targetCategory = null;
+      if (category == 'reliable_failures') {
+        targetCategory = reliableFailures;
+      } else if (category == 'unclassified_failures') {
+        targetCategory = unclassifiedFailures;
+      } else if (category == 'flaky_failures') {
+        targetCategory = flakyFailures;
+      } else {
+        alert('Unrecongnizable category of test results, please file a bug for it.');
+        return;
+      }
+      $.each(results, function(index, result) {
+        targetCategory.push({
+          'stepName': step_name,
+          'result': result,
+        });
+      });
+    });
+  });
+  document.getElementById('reliable-failures').debug = findit.showDebugInfo;
+  document.getElementById('reliable-failures').failures = reliableFailures;
+  document.getElementById('flaky-failures').failures = flakyFailures;
+  document.getElementById('unclassified-failures').failures = unclassifiedFailures;
+{% endblock failure_classification %}
+
+{% block heading %}
+Test Failure:
+{% endblock heading %}
+
+{% block failure_info %}
+  Build Number: <a href="https://ci.chromium.org/b/{{build_id}}" target="_blank">{{build_number}}</a>
+{% endblock failure_info %}
+
+{% block result_tables %}
+  {% if analysis_failed %}
+    <span class="error">No result because of some error in analysis!</span>
+  {% elif not analysis_result %}
+    <div id="no-failures-message">No failure was found.</div>
+  {% endif %}
+  <div id="analysis_result">
+    <div id="reliable-failure-container">
+      <reliable-failures id="reliable-failures" builder-url="https://ci.chromium.org/p/chromium/builders/ci/{{builder_name}}"></reliable-failures>
+    </div>
+
+    <div id="flaky-failure-container">
+      <non-reliable-failures id="flaky-failures" header="Flaky failures" builder-url="https://ci.chromium.org/p/chromium/builders/ci/{{builder_name}}"></non-reliable-failures>
+    </div>
+
+    <div id="unclassified-failure-container">
+      <non-reliable-failures id="unclassified-failures" header="Unclassified failures" builder-url="https://ci.chromium.org/p/chromium/builders/ci/{{builder_name}}"></non-reliable-failures>
+    </div>
+  </div>
+{% endblock result_tables %}

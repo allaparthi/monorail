@@ -1,0 +1,137 @@
+<link rel="import" href="../../bower_components/app-route/app-location.html">
+<link rel="import" href="../../bower_components/app-route/app-route.html">
+
+<link rel="import" href="/elements/crdx-header/crdx-header.html">
+
+<link rel="import" href="/elements/activity-table.html">
+<link rel="import" href="/elements/day-details.html">
+<link rel="import" href="/elements/user-id.html">
+<link rel="import" href="/elements/user-input.html">
+
+<dom-module id="who-page">
+  <template>
+    <style>
+    #container {
+      padding: 1em 1.6rem;
+    }
+
+    #table_spinner, #table, #details_spinner, #details {
+      display: none;
+    }
+    </style>
+
+    <app-location route="{{route}}"></app-location>
+
+    <app-route route="{{route}}" pattern="/:username" data="{{_routeData}}">
+    </app-route>
+
+    <app-route route="{{route}}" pattern="/:username/:date" data="{{_routeData}}">
+    </app-route>
+
+    <crdx-header app-title="Chromium Who" user="[[user]]" logo-url="images/logo.png" logout-url="[[logoutUrl]]"></crdx-header>
+
+    <div id="container">
+      <user-input id="user"></user-input>
+
+      <paper-spinner id="table_spinner" active></paper-spinner>
+      <activity-table id="table"></activity-table>
+
+      <paper-spinner id="details_spinner" active></paper-spinner>
+      <day-details id="details"></day-details>
+    </div>
+  </template>
+</dom-module>
+
+<script>
+'use strict';
+class WhoPage extends ReduxMixin(Polymer.Element) {
+  static get is() {
+    return 'who-page';
+  }
+
+  static get properties() {
+    return {
+      route: Object,
+      _routeData: {
+        type: Object,
+        value: () => {return {}; },
+      },
+      user: String,
+      logoutUrl: String,
+    };
+  }
+
+  static get actions() {
+    return {
+      selectUser(username, whoPage) {
+        if (whoPage.getState().activityTables[whoPage.getState().username]) {
+          return {
+            type: ACTIVITY_TABLE_RESPONSE_SUCCESS,
+          };
+        }
+        return reduxAjax({
+          path: '/_/history',
+          body: {username},
+          requestType: ACTIVITY_TABLE_REQUEST,
+          successType: ACTIVITY_TABLE_RESPONSE_SUCCESS,
+          errorType: ACTIVITY_TABLE_RESPONSE_ERROR,
+          dispatch: whoPage.dispatch.bind(whoPage),
+        });
+      },
+    };
+  }
+
+  ready() {
+    super.ready();
+    this.addEventListener('state-changed', this.onStateChanged_.bind(this));
+    this.$.user.addEventListener(
+        'selected-users-changed', this.onSelectedUsersChanged_.bind(this));
+    this.$.user.suggestions = [
+      {userId: 'wylieb'},
+      {userId: 'zhangtiff'},
+      {userId: 'seanmccullough'},
+      {userId: 'jojwang'},
+      {userId: 'benjhayden'},
+    ];
+    // This should fire selected-users-changed, which will dispatch selectUser
+    // to load the dummy activities, then fire state-changed, listened by
+    // onStateChanged_, which should display the activity-table.
+    this.$.user.selectedUsers = [{userId: this.getState().username}];
+  }
+
+  onSelectedUsersChanged_() {
+    this.dispatch('selectUser', this.$.user.selectedUsers[0].userId, this);
+  }
+
+  onStateChanged_() {
+    if (this.getState().username !== this.$.user.selectedUsers[0]) {
+      this.$.user.selectedUsers = [this.getState().username];
+    }
+
+    this.$.table_spinner.style.display = this.getState().isFetchingActivityTable
+      ? 'block' : 'none';
+    this.$.details_spinner.style.display = this.getState().isFetchingDayDetail
+      ? 'block' : 'none';
+
+    // Update this.$.table when state.activityTables changes.
+    const activities =
+      this.getState().activityTables[this.getState().username];
+    console.log(activities);
+    this.$.table.style.display = activities ? 'block' : 'none';
+    if (activities) {
+      this.$.table.weeks = activities;
+    }
+
+    const detailKey = this.getState().username + ' ' + this.getState().day;
+    const detail = this.getState().dayDetails[detailKey];
+    console.log(detail);
+    this.$.details.style.display = detail ? 'block' : 'none';
+    if (detail) {
+      this.$.details.day = this.getState().day;
+      this.$.details.bugs = detail.Bugs;
+      this.$.details.changes = detail.Changes;
+    }
+  }
+}
+customElements.define(WhoPage.is, WhoPage);
+</script>

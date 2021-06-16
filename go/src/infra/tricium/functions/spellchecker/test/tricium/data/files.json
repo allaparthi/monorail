@@ -1,0 +1,8 @@
+{
+	"commitMessage": "Updat the cod coments\n\nBug: ABC",
+	"files": [
+		{ "path": "example.c" },
+		{ "path": "example.txt" },
+		{ "path": "BUILD.gn" }
+	]
+}

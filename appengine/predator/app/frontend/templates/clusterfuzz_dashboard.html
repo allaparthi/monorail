@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<head>
+  <title>{{client}} dashboard</title>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="/common.css">
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
+  <style type="text/css">
+    .truncated {
+      max-width: 120px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .previous, .next {
+      color: #0645AD;
+      background: none;
+      border: none;
+      padding: 0;
+      font: inherit;
+      border-bottom:1px solid #0645AD;
+      cursor: pointer;
+    }
+    .disabled {
+      color: #d3d3d3;
+      background: none;
+      border: none;
+      padding: 0;
+      font: inherit;
+      border-bottom:1px solid #d3d3d3;
+      cursor: pointer;
+    }
+  </style>
+  <script>
+    function createUrl(base_url, parameters) {
+      var params = [];
+      for (var key in parameters) {
+        if (parameters[key] != undefined) {
+          params.push(key + '=' + parameters[key])
+        }
+      }
+
+      if (params.length == 0) {
+        return base_url;
+      } else {
+        return base_url + '?' + params.join('&');
+      }
+    };
+
+    function getParameters(client) {
+      var parameters = {}
+      parameters['start_date'] = $('#start_date').val() == 'mm/dd/yyyy' ? undefined : $('#start_date').val();
+      parameters['end_date'] = $('#end_date').val() == 'mm/dd/yyyy' ? undefined : $('#end_date').val();
+      parameters['found_suspects'] = $('#found_suspects').val() == 'default' ? undefined : $('#found_suspects').val();
+      parameters['has_regression_range'] = $('#has_regression_range').val() == 'default' ? undefined : $('#has_regression_range').val();
+      parameters['suspected_cls_triage_status'] = $('#suspected_cls_triage_status').val() == 'default' ? undefined : $('#suspected_cls_triage_status').val();
+      parameters['regression_range_triage_status'] = $('#regression_range_triage_status').val() == 'default' ? undefined : $('#regression_range_triage_status').val();
+      parameters['testcase_id'] = $('#testcase_id').val() == ''? undefined : $('#testcase_id').val();
+      return parameters;
+    }
+
+    function getPageUrl(client, obj) {
+      var parameters = getParameters(client);
+      if (obj.attr('class') == 'previous') {
+        parameters['cursor'] = '{{ top_cursor }}';
+        parameters['direction'] = 'previous';
+      } else if (obj.attr('class') == 'next') {
+        parameters['cursor'] = '{{ bottom_cursor }}';
+        parameters['direction'] = 'next';
+      }
+
+      return createUrl(window.location.pathname, parameters);
+    }
+
+    function getFilterUrl(client) {
+      return createUrl(window.location.pathname, getParameters(client));
+    }
+
+    function loadUrl(url) {
+      window.location.assign(url);
+    }
+
+    $(function() {
+      $(document).on('click', '.previous, .next', function() {
+        loadUrl(getPageUrl('{{client}}', $(this)));
+      });
+
+      $(document).on('click', '#submit', function(e) {
+        e.preventDefault();
+        loadUrl(getFilterUrl('{{client}}'));
+      });
+
+      if ('{{found_suspects}}' != '-1') {
+        $('#found_suspects').val('{{found_suspects}}');
+      }
+      if ('{{has_regression_range}}' != '-1') {
+        $('#has_regression_range').val('{{has_regression_range}}');
+      }
+      if ('{{suspected_cls_triage_status}}' != '-1') {
+        $('#suspected_cls_triage_status').val('{{suspected_cls_triage_status}}');
+      }
+      if ('{{regression_range_triage_status}}' != '-1') {
+        $('#regression_range_triage_status').val('{{regression_range_triage_status}}');
+      }
+      $('#testcase_id').val('{{testcase_id}}');
+
+      if ('{{ bottom_cursor }}' == '') {
+        $('.next').prop('disabled', true);
+        $('.next').addClass('disabled');
+      } else {
+        $('.next').prop('disabled', false);
+      }
+
+      if ('{{ top_cursor }}' == '') {
+        $('.previous').prop('disabled', true);
+        $('.previous').addClass('disabled');
+      } else {
+        $('.previous').prop('disabled', false);
+      }
+    });
+  </script>
+</head>
+<body>
+  <form>
+    Start Date
+    <input type="date" id="start_date" value={{start_date}}></input>
+    End Date
+    <input type="date" id="end_date" value={{end_date}}></input>
+
+    Found suspects
+    <select id="found_suspects">
+      <option value="default"></option>
+      <option value="yes">True</option>
+      <option value="no">False</option>
+    </select>
+
+    Has regression range
+    <select id="has_regression_range">
+      <option value="default"></option>
+      <option value="yes">True</option>
+      <option value="no">False</option>
+    </select>
+
+    Suspects triaged?
+    <select id="suspected_cls_triage_status">
+      <option value="default"></option>
+      <option value="0">Untriaged</option>
+      <option value="1">Triaged-Incorrect</option>
+      <option value="2">Triaged-Correct</option>
+      <option value="3">Triaged-Unsure</option>
+    </select>
+
+    Regression range triaged?
+    <select id="regression_range_triage_status">
+      <option value="default"></option>
+      <option value="0">Untriaged</option>
+      <option value="1">Triaged-Incorrect</option>
+      <option value="2">Triaged-Correct</option>
+      <option value="3">Triaged-Unsure</option>
+    </select>
+
+    <br/><br/>Testcase id
+    <input id="testcase_id" size=35></input>
+    <input type="submit" id="submit" value="Filter"></input>
+  </form>
+
+  <br>
+  <div>
+    <button class="previous">Previous</button>
+    <button class="next">Next</button>
+  </div>
+  <div id="dashboard-table">
+    <table>
+      <tr>
+        <th>Testcase</th>
+        <th>Crash type</th>
+        <th>Crash state</th>
+        <th>Commits</th>
+        <th>Platform</th>
+        <th>Job type</th>
+        <th>Error</th>
+        <th>Suspected cls</th>
+        <th>Suspected project</th>
+        <th>Suspected components</th>
+      </tr>
+      <tbody>
+        {% for crash in crashes %}
+          <tr>
+            <td>
+              <a href="https://clusterfuzz.com/v2/testcase-detail/{{ crash.testcase_id }}">{{ crash.testcase_id }}</a>
+            </td>
+            <td>{{ crash.crash_type }}</td>
+            <td>
+              <a href="./result-feedback?key={{crash.key}}" target="_blank"><pre>{{crash.signature}}</pre></a>
+            </td>
+            <td>{{ crash.commits }}</td>
+            <td>{{ crash.platform }}</td>
+            <td class="truncated">{{ crash.job_type }}</td>
+            <td>
+            {% if crash.log %}
+              {% for log in crash.log %}
+                <li class="truncated">"{{log}}"</li>
+              {% endfor %}
+            {% endif %}
+            </td>
+            <td>
+            {% if crash.suspected_cls %}
+              {% for suspected_cl in crash.suspected_cls %}
+              <li class="truncated">
+                <a href="{{suspected_cl.url}}">{{suspected_cl.revision}}</a>
+              </li>
+              {% endfor %}
+            {% endif %}
+            </td>
+            <td>{{ crash.suspected_project }}</td>
+            <td>
+            {% if crash.suspected_components %}
+              {% for component in crash.suspected_components %}
+              <li>{{component}}</li>
+              {% endfor %}
+            {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <div>
+      <button class="previous">Previous</button>
+      <button class="next">Next</button>
+    </div>
+  </div>
+</body>

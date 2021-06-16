@@ -1,0 +1,221 @@
+// Copyright 2018 The LUCI Authors. All rights reserved.
+// Use of this source code is governed under the Apache License, Version 2.0
+// that can be found in the LICENSE file.
+
+syntax = "proto3";
+
+package qscheduler;
+
+import "google/protobuf/wrappers.proto";
+import "infra/qscheduler/qslib/protos/config.proto";
+import "infra/qscheduler/qslib/protos/state.proto";
+
+// This API is under development and subject to compatibility-breaking changes.
+// Do not use for production.
+
+// QSchedulerAdmin is the administrative API for a quotascheduler.
+service QSchedulerAdmin {
+    // CreateSchedulerPool creates a scheduler, with the given configuration
+    // options.
+    rpc CreateSchedulerPool(CreateSchedulerPoolRequest) returns (CreateSchedulerPoolResponse);
+
+    // CreateAccount creates a quota account within a scheduler, with the
+    // given configuration options.
+    rpc CreateAccount(CreateAccountRequest) returns (CreateAccountResponse);
+
+    // Wipe wipes out the state of a scheduler.
+    //
+    // This endpoint is intended for debug purposes, and may go away at any
+    // point. May have significant correctness or performance impact on
+    // scheduler.
+    rpc Wipe(WipeRequest) returns (WipeResponse);
+
+    // ModAccount modifies an account.
+    rpc ModAccount(ModAccountRequest) returns (ModAccountResponse);
+
+    // ModSchedulerPool modifies a scheduler.
+    rpc ModSchedulerPool(ModSchedulerPoolRequest) returns (ModSchedulerPoolResponse);
+
+    // DeleteAccount deletes an account.
+    rpc DeleteAccount(DeleteAccountRequest) returns (DeleteAccountResponse);
+
+    // DeleteSchedulerPool deletes a scheduler.
+    rpc DeleteSchedulerPool(DeleteSchedulerPoolRequest) returns (DeleteSchedulerPoolResponse);
+}
+
+message CreateSchedulerPoolRequest {
+    // PoolId is the unique id of this scheduler pool.
+    string pool_id = 1;
+
+    // Deprecated, calls will fail if this is specified. Instead, create a pool
+    // and then modify its config with later calls.
+    protos.SchedulerConfig config = 2 [deprecated = true];
+}
+
+message CreateSchedulerPoolResponse {}
+
+message CreateAccountRequest {
+    // PoolID is the id of the scheduler to create an account within.
+    string pool_id = 1;
+
+    // AccountId is the unique id of the account (within the given pool).
+    string account_id = 2;
+
+    // Config is the quota account config for the quota account to create.
+    protos.AccountConfig config = 3;
+}
+
+message CreateAccountResponse {}
+
+message WipeRequest {
+        // PoolID is the id of the scheduler to wipe.
+        string pool_id = 1;
+}
+
+message WipeResponse {}
+
+message ModAccountRequest {
+  string pool_id = 1;
+
+  string account_id = 2;
+
+  repeated float charge_rate = 3;
+
+  google.protobuf.FloatValue max_charge_seconds = 4;
+
+  google.protobuf.Int32Value max_fanout = 5;
+
+  google.protobuf.BoolValue disable_free_tasks = 6;
+
+  // If true, reset this account's balance to 0.
+  bool reset_balance = 7;
+
+  google.protobuf.StringValue description = 8;
+}
+
+message ModAccountResponse {}
+
+message ModSchedulerPoolRequest {
+  string pool_id = 1;
+
+  google.protobuf.BoolValue disable_preemption = 2;
+
+  google.protobuf.Int32Value bot_expiration_seconds = 3;
+}
+
+message ModSchedulerPoolResponse {}
+
+message DeleteAccountRequest {
+    string pool_id = 1;
+
+    string account_id = 2;
+}
+
+message DeleteAccountResponse {}
+
+message DeleteSchedulerPoolRequest {
+    string pool_id = 1;
+}
+
+message DeleteSchedulerPoolResponse {}
+
+// QSchedulerView is a inspection / viewing API for quotascheduler. All calls
+// are read-only.
+service QSchedulerView {
+    // ListAccounts returns the set of accounts for a given scheduler.
+    rpc ListAccounts(ListAccountsRequest) returns (ListAccountsResponse);
+
+    // InspectPool returns a description of the state of a scheduler, for debugging
+    // or diagnostic purposes.
+    rpc InspectPool(InspectPoolRequest) returns (InspectPoolResponse);
+}
+
+message ListAccountsRequest {
+    // PoolID is the id of the scheduler to list accounts from.
+    string pool_id = 1;
+}
+
+message ListAccountsResponse {
+    map<string, protos.AccountConfig> accounts = 1;
+}
+
+message InspectPoolRequest {
+    string pool_id = 1;
+}
+
+message InspectPoolResponse {
+    // NumWaitingTasks is the number of waiting tasks.
+    int32 num_waiting_tasks = 1;
+
+    // NumRunningTasks is the number of running tasks.
+    int32 num_running_tasks = 2;
+
+    // IdleBots is the number of idle bots.
+    int32 num_idle_bots = 3;
+
+    // AccountBalances is the set of balances for all accounts.
+    map<string, protos.SchedulerState.Balance> account_balances = 4;
+
+    message RunningTask {
+        // Id is the id of the request.
+        string id = 1;
+
+        // BotId is the id of the bot running the request.
+        string bot_id = 2;
+
+        // Priority is the current quotascheduler priority that the task is
+        // running at.
+        int32 priority = 3;
+
+        // AccountID is the account id of the request.
+        string account_id = 4;
+
+        // Age in seconds of the task, measured from the last time at which
+        // the running state was confirmed.
+        int32 age_seconds = 5;
+    }
+
+    // RunningTasks is a description of the running tasks according to
+    // quotascheduler.
+    repeated RunningTask running_tasks = 5;
+
+    message WaitingTask {
+        // Id is the id of the request.
+        string id = 1;
+
+        // AccountID is the account id of the request.
+        string account_id = 2;
+
+        // Age in seconds of waiting task, measured from the last time at
+        // which the waiting state was confirmed.
+        int32 age_seconds = 3;
+    }
+
+    // WaitingTasks is a description of the tasks that are waiting
+    // according to quotascheduler.
+    repeated WaitingTask waiting_tasks = 6;
+
+    message IdleBot {
+        // Id is the id of the bot.
+        string id = 1;
+
+        // Dimensions are the dimensions of the bot.
+        repeated string dimensions = 2;
+
+        // Age in seconds of bot, measured from the last time at which the
+        // idle state was confirmed.
+        int32 age_seconds = 3;
+    }
+
+    // IdleBots is a description of the idle bots according to quotascheduler.
+    repeated IdleBot idle_bots = 7;
+
+    // Deprecated old field.
+    reserved 8;
+
+    // AccountConfigs is a description of the account configs.
+    map<string, protos.AccountConfig> account_configs = 9;
+
+    // DisablePreemption indicates whether preemption is disabled.
+    bool disable_preemption = 10;
+}

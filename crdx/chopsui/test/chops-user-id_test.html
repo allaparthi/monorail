@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<title>userIdTest</title>
+<meta charset="utf-8">
+<link rel="import" href="../chops-user-id.html">
+<script src="../../webcomponentsjs/webcomponents-lite.js"></script>
+<script src="../../web-component-tester/browser.js"></script>
+
+<test-fixture id="chops-user-id-test">
+  <template>
+    <chops-user-id></chops-user-id>
+  </template>
+</test-fixture>
+
+<script>
+  'use strict';
+
+  suite('chops-user-id', function() {
+    var element;
+    setup(function() {
+      element = fixture('chops-user-id-test');
+    });
+
+    test('userId w/out link', function(done) {
+      element.userId = 'yourLDAP';
+      flush(function() {
+        assert.isNotOk(element.shadowRoot.querySelector('a'));
+        done();
+      });
+    });
+    test('userId w/ link', function(done) {
+      element.userId = 'yourLDAP';
+      element.profileLink = 'www.some-url.com';
+      flush(function() {
+        assert.isOk(element.shadowRoot.querySelector('a'));
+        done();
+      });
+    });
+    test('user-removed', function(done) {
+      element.removeable = true;
+      element.userId = 'yourLDAP';
+      element.profileLink = 'www.some-url.com';
+      element.email = 'something@gmail.com';
+      let user = {userId: 'yourLDAP', email: 'something@gmail.com', profileLink: 'www.some-url.com'};
+      element.addEventListener('remove-user', (event) => {
+        assert.deepEqual(event.detail.removedUser, user);
+        done();
+      });
+      flush(function() {
+        element.shadowRoot.querySelector('iron-icon').click();
+      });
+    });
+  });
+</script>

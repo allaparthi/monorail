@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+
+<head>
+  <link rel="import" href="flake-analysis-info.html">
+</head>
+
+<body>
+  <h3>Complete with culprit and bug</h3>
+  <flake-analysis-info  status="completed"
+                        regression-range-upper="upper"
+                        regression-range-lower="lower"
+                        regression-range-confidence="50"
+                        culprit-url="google.com"
+                        culprit-revision="culprit"
+                        culprit-confidence="100"
+                        bug-id="12345">
+  </flake-analysis-info>
+
+  <h3>Complete with culprit and bug no regression confidence</h3>
+  <flake-analysis-info  status="completed"
+                        regression-range-upper="upper"
+                        regression-range-lower="lower"
+                        regression-range-confidence
+                        culprit-url="google.com"
+                        culprit-revision="culprit"
+                        culprit-confidence="50"
+                        bug-id="12345">
+  </flake-analysis-info>
+
+  <h3>Complete with culprit and bug no culprit confidence</h3>
+  <flake-analysis-info  status="completed"
+                        regression-range-upper="upper"
+                        regression-range-lower="lower"
+                        regression-range-confidence="50"
+                        culprit-url="google.com"
+                        culprit-revision="culprit"
+                        culprit-confidence
+                        bug-id="12345">
+  </flake-analysis-info>
+
+  <h3>Complete with no culprit and bug</h3>
+  <flake-analysis-info  status="completed"
+                        regression-range-upper="upper"
+                        regression-range-lower="lower"
+                        regression-range-confidence="50"
+                        culprit-url=""
+                        culprit-revision=""
+                        culprit-confidence=""
+                        bug-id="12345">
+  </flake-analysis-info>
+
+  <h3>Complete with an upper bound (longstanding flake)</h3>
+  <flake-analysis-info  status="completed"
+                        regression-range-upper="upper"
+                        regression-range-lower=""
+                        regression-range-confidence=""
+                        culprit-url=""
+                        culprit-revision=""
+                        culprit-confidence=""
+                        bug-id="">
+  </flake-analysis-info>
+
+  <h3>Complete with a lower bound (unreproducible flake)</h3>
+  <flake-analysis-info  status="completed"
+                        regression-range-upper=""
+                        regression-range-lower="lower"
+                        regression-range-confidence=""
+                        culprit-url=""
+                        culprit-revision=""
+                        culprit-confidence=""
+                        bug-id="">
+  </flake-analysis-info>
+
+  <h3>Running without regression range</h3>
+  <flake-analysis-info  status="running"
+                        regression-range-upper=""
+                        regression-range-lower=""
+                        regression-range-confidence=""
+                        culprit-url=""
+                        culprit-revision=""
+                        culprit-confidence=""
+                        bug-id="">
+  </flake-analysis-info>
+
+  <h3>Pending without regression range</h3>
+  <flake-analysis-info  status="pending"
+                        regression-range-upper=""
+                        regression-range-lower=""
+                        regression-range-confidence=""
+                        culprit-url=""
+                        culprit-revision=""
+                        culprit-confidence=""
+                        bug-id="">
+  </flake-analysis-info>
+
+  <h3>Running culprit analysis</h3>
+  <flake-analysis-info  status="running"
+                        regression-range-upper="upper"
+                        regression-range-lower="lower"
+                        regression-range-confidence="50"
+                        culprit-url=""
+                        culprit-revision=""
+                        culprit-confidence=""
+                        bug-id="">
+  </flake-analysis-info>
+
+  <h3>pending culprit analysis</h3>
+  <flake-analysis-info  status="running"
+                        regression-range-upper="upper"
+                        regression-range-lower="lower"
+                        regression-range-confidence="50"
+                        culprit-url=""
+                        culprit-revision=""
+                        culprit-confidence=""
+                        bug-id="">
+  </flake-analysis-info>
+
+  <h3>Regression range with error</h3>
+  <flake-analysis-info status="error"
+                       regression-range-upper="upper"
+                       regression-range-lower="lower"
+                       regression-range-confidence="50"
+                       culprit-url=""
+                       culprit-revision=""
+                       culprit-confidence=""
+                       bug-id=""
+                       error="error message">
+  </flake-analysis-info>
+
+  <h3>Culprit analysis with error</h3>
+  <flake-analysis-info  status="error"
+                        regression-range-upper="upper"
+                        regression-range-lower="lower"
+                        regression-range-confidence="50"
+                        culprit-url=""
+                        culprit-revision=""
+                        culprit-confidence=""
+                        bug-id=""
+                        error="error message">
+  </flake-analysis-info>
+</body>

@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<head>
+  <meta charset="UTF-8">
+  <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
+  <title>Flake Occurrences</title>
+  <script src="/bower_components/webcomponentsjs/webcomponents-lite.js"></script>
+  <link rel="import" href="/ui/elements/cats-app.html">
+  <link rel="import" href="/ui/elements/flake_detection/flake.html">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+  <script>
+    $(function() {
+      document.getElementById('app').userInfo = {{ (user_info or {}) | tojson | safe }};
+    });
+  </script>
+  </script>
+</head>
+<body>
+  <cats-app id="app" components="Infra>Test>Flakiness" page-header="Flake Occurrences">
+    <flaky-test
+      flake_json='{{flake_json | tojson}}'
+      key='{{key}}'
+      show_all_occurrences='{{show_all_occurrences}}'
+      weights='{{weights | tojson}}'>
+  </cats-app>
+</body>

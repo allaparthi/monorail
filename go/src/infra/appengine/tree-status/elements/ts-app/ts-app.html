@@ -1,0 +1,47 @@
+<link rel="import" href="../../bower_components/polymer/polymer.html">
+<link rel="import" href="../../bower_components/polymer/polymer-element.html">
+<link rel="import" href="../../bower_components/app-route/app-location.html">
+<link rel="import" href="../../bower_components/app-route/app-route.html">
+
+<link rel="import" href="../../bower_components/chopsui/chops-header.html">
+<link rel="import" href="../../bower_components/chopsui/chops-login.html">
+
+<link rel="import" href="../../elements/ts-tree-row/ts-tree-row.html">
+<link rel="import" href="../../elements/ts-tree-view/ts-tree-view.html">
+
+<dom-module id="ts-app">
+  <template>
+    <style>
+      #tsContainer {
+        padding: 1em 1.6rem;
+      }
+    </style>
+    <chops-header logo-src="/images/chromium.png" app-title="Tree-Status">
+      <template is="dom-if" if="[[_tree]]">
+        <span slot="subheader">
+          &gt;
+          <a href$="/[[_tree.name]]">
+            [[_capitalizeWords(_tree.name)]]-Status
+          </a>
+        </span>
+      </template>
+      <chops-login user="[[user]]" logout-url="[[logoutUrl]]" login-url="[[loginUrl]]"></chops-login>
+    </chops-header>
+    <div id="tsContainer">
+      <app-location route="{{route}}" query-params="{{queryParams}}" url-space-regex="^(?!(/_ah/|/auth/))"></app-location>
+      <app-route route="{{route}}" pattern="/" active="{{_mainRouteIsActive}}">
+        <template is="dom-if" if="[[_mainRouteIsActive]]">
+          <template is="dom-repeat" items="[[_trees]]" as="tree">
+            <ts-tree-row tree="[[tree]]"></ts-tree-row>
+          </template>
+        </template>
+      </app-route>
+      <app-route route="{{route}}" pattern="/:tree" data="{{_treeViewData}}">
+        <template is="dom-if" if="[[_tree]]">
+          <ts-tree-view tree="[[_tree]]" status-limit="[[queryParams.limit]]"></ts-tree-view>
+        </template>
+      </app-route>
+    </div>
+  </template>
+  <script src="ts-app.js"></script>
+</dom-module>

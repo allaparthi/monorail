@@ -1,0 +1,70 @@
+// Copyright 2017 The Chromium Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+syntax = "proto3";
+
+package admin;
+
+import "infra/tricium/api/v1/data.proto";
+import "infra/tricium/api/v1/tricium.proto";
+
+// Tracker implements the internal tracker API of the Tricium service.
+service Tracker {
+
+  // WorkflowLaunched marks the workflow as launched for a specified run.
+  rpc WorkflowLaunched(WorkflowLaunchedRequest) returns (WorkflowLaunchedResponse);
+
+  // WorkerLaunched marks the specified worker as launched.
+  rpc WorkerLaunched(WorkerLaunchedRequest) returns (WorkerLaunchedResponse);
+
+  // WorkerDone marks the specified worker as done.
+  rpc WorkerDone(WorkerDoneRequest) returns (WorkerDoneResponse);
+}
+
+// WorkflowLaunchedRequest specified details need to mark a workflow as
+// launched.
+//
+// This message should be sent by the Launcher after a workflow has been launched.
+message WorkflowLaunchedRequest {
+  int64 run_id = 1;
+}
+
+message WorkflowLaunchedResponse {
+}
+
+// WorkerLaunchedRequest specifies details needed to mark a worker as launched.
+// This includes details useful for the tracking UI.
+//
+// This message should be sent by the Driver after a swarming task or buildbucket
+// build for the worker has been triggered.
+message WorkerLaunchedRequest {
+  int64 run_id = 1;
+  string worker = 2;
+  string isolated_input_hash = 3;
+  string swarming_task_id = 4;
+  int64 buildbucket_build_id = 5;
+}
+
+message WorkerLaunchedResponse {
+}
+
+// WorkerDoneRequest specifies details needed to mark a worker as done.
+// This includes details useful for the tracking UI.
+//
+// This message should be sent by the Driver after results from the swarming
+// task for a worker have been collected. Depending on the type of worker, either
+// the isolated_output_hash and isolated_namespace (for swarming tasks) or the
+// buildbucket_output (for buildbucket builds) should be populated.
+message WorkerDoneRequest {
+  int64 run_id = 1;
+  string worker = 2;
+  string isolated_namespace = 7;
+  string isolated_output_hash = 3;
+  tricium.Data.Type provides = 4;
+  tricium.State state = 5;
+  string buildbucket_output = 6;
+}
+
+message WorkerDoneResponse {
+}

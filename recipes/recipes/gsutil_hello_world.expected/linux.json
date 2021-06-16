@@ -1,0 +1,52 @@
+[
+  {
+    "cmd": [
+      "vpython",
+      "-u",
+      "RECIPE_MODULE[recipe_engine::file]/resources/fileutil.py",
+      "--json-output",
+      "/path/to/tmp/json",
+      "copy",
+      "1337000001.5",
+      "[TMP_BASE]/access_test"
+    ],
+    "infra_step": true,
+    "name": "write access_test",
+    "~followup_annotations": [
+      "@@@STEP_LOG_LINE@access_test@1337000001.5@@@",
+      "@@@STEP_LOG_END@access_test@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "python",
+      "-u",
+      "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
+      "--",
+      "RECIPE_REPO[depot_tools]/gsutil.py",
+      "----",
+      "cp",
+      "[TMP_BASE]/access_test",
+      "gs://luci-playground/access_test"
+    ],
+    "infra_step": true,
+    "name": "gsutil upload",
+    "~followup_annotations": [
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/luci-playground/access_test@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "python",
+      "-u",
+      "RECIPE_REPO[depot_tools]/upload_to_google_storage.py",
+      "-b",
+      "luci-playground",
+      "[TMP_BASE]/access_test"
+    ],
+    "name": "upload_to_google_storage"
+  },
+  {
+    "name": "$result"
+  }
+]

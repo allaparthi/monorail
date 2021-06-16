@@ -1,0 +1,6 @@
+# Google App Engine generated folder
+appengine-generated/
+bower_components
+node_modules
+som-app.vulcanized.html
+.nyc_output

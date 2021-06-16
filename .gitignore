@@ -1,0 +1,38 @@
+# Python local environment:
+/.wheelcache
+/ENV
+
+# TODO(crbug/1002047): Have these auto-generated.
+/bootstrap/virtualenv-ext
+/go/src/go.chromium.org
+!/luci/appengine/components/components/ereporter2/ui.py
+/luci
+/recipes-py
+/recipes/.recipe_deps
+
+# TODO: Move to native cipd gclient support:
+/cipd/*
+!/cipd/README.md
+
+# Used by "infra/tools/dockerbuild".
+.dockerbuild
+
+# Cache directory created by 3pp/run_locally.sh
+.3pp_wd
+
+# build/build.py script produces *.cipd binaries, they must not be committed.
+*.cipd
+
+# Stale?
+/node/runtimes
+build_cache
+reasons.sqlite
+
+# People with misconfigured global ignores:
+*.pyc
+*.sublime-*
+.DS_Store
+.coverage
+.expect_tests_coverage*
+.vscode
+.idea

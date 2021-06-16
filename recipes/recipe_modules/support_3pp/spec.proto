@@ -1,0 +1,417 @@
+// Copyright 2018 The Chromium Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+syntax = "proto3";
+
+package recipe_modules.infra.support_3pp;
+
+// The Spec for a third-party package fully describes how to:
+//   * Fetch the package sources
+//   * Build the sources
+//   * Package the built product
+//   * Verify the packaged product
+//   * Upload the packaged product to CIPD
+message Spec {
+
+  // Describes how to fetch+build+test the pkg.
+  //
+  // All scripts are invoked with the following environment variables (unless
+  // noted otherwise):
+  //
+  //   * $_3PP_PACKAGE_NAME - the name of the package currently building
+  //     (if any patch version was set).
+  //   * $_3PP_PATCH_VERSION - the `patch_version` set for this create block
+  //   * $_3PP_PLATFORM - the platform we're targeting
+  //   * $_3PP_TOOL_PLATFORM - the platform that we're building on (will be different
+  //     than _3PP_PLATFORM if we're cross-compiling)
+  //   * $_3PP_VERSION - the version we're building, e.g. 1.2.3
+  //   * $GOOS - The golang OS name we're targeting
+  //   * $GOARCH - The golang architecture we're targeting
+  //   * $MACOSX_DEPLOYMENT_TARGET - On OS X, set to 10.10, for your
+  //     semi-up-to-date OS X building needs. This needs to be consistently
+  //     set for all packages or it will cause linker warnings/errors when
+  //     linking in static libs that were targeting a newer version (e.g.
+  //     if it was left unset). Binaries built with this set to 10.10 will not
+  //     run on 10.9 or older systems.
+  //
+  // Additionally, on cross-compile environments, the $CROSS_TRIPLE environment
+  // variable is set to a GCC cross compile target triplet of cpu-vendor-os.
+  message Create {
+    message Source {
+      // (required) Source messages must have one of these methods.
+      oneof method {
+        GitSource git = 1;
+        CipdSource cipd = 2;
+        ScriptSource script = 3;
+      }
+
+      // (optional) Run checkout in this subdirectory of the install script's
+      // $CWD.
+      //
+      // Useful for e.g. Go packages, where you want the install script to run
+      // in a parent directory of the go checkout.
+      //
+      // For example if this is `go/src/repo.com`, and you're using a `git`
+      // source method then the files in the git repo will be checked out to
+      // `/path/to/checkout/go/src/repo.com`, but the install script will still
+      // run in `/path/to/checkout`.
+      string subdir = 4;
+
+      // (optional) If set to true, the source checkout will produce a single
+      // archive (zip or tar) file in the checkout directory, and the recipe
+      // will find and unpack it.
+      //   * The recipe will expect exactly one archive file, conforming to the
+      //   `*.*` glob, in the checkout/subdir directory after the source phase
+      //   is complete.
+      //   * Archives must be .zip or a well-known tarball extension (supporting
+      //   either none, gzip or bzip2 compression).
+      //   * The recipe will delete any other files in this directory prior to
+      //   unpacking the tarball.
+      //   * If the tarball has all files in a single directory, this directory
+      //   will be pruned (and this applies recursively). Many source tallballs
+      //   are released like `foo-1.2.tar.gz`, containing a folder `foo-1.2`
+      //   with all source files inside that. Pruning these archives makes the
+      //   installation scripts easier. If you run into a case where this
+      //   behavior is undesired, set `no_archive_prune` to true.
+      bool unpack_archive = 5;
+      bool no_archive_prune = 6;
+
+      // (optional) Directories relative to the project folder holding patches
+      // to apply with "git apply".
+      //
+      // All patches in the directories will be applied, in alphanumeric order,
+      // after unpacking the archive (if any).
+      //
+      // This is provided as a list option so that different sets of patches can
+      // be applied for different values of ${platform}, possibly with some
+      // overlapping base patches.
+      repeated string patch_dir = 7;
+
+      // (optional) Used to differentiate from the stock symver during
+      // compilation and in the generated CIPD package tags.
+      //
+      // For example, if this is `my_org1`, and we were building `1.2.3` of the
+      // source, then this would upload with the CIPD tag of
+      // `version:1.2.3.my_org1`
+      string patch_version = 8;
+    }
+
+    message Build {
+      // (optional) Name (and args) of a script adjacent to 3pp.pb which knows
+      // how to transform the source into the built product.
+      //
+      // If omitted, this defaults to `["install.sh"]`.
+      //
+      // Subsequent install args are passed to the script verbatim, followed by
+      // a target `prefix` path to install the compiled package to, followed by
+      // a path to a prefix containing all deps. The current directory is set to
+      // the base directory of the source checkout (excluding subdir). Any
+      // specified tools will be in $PATH (both '$tools' and '$tools/bin' are
+      // added to $PATH, because many packages are set up with their binaries at
+      // the base of the package, and some are set up with them in a /bin
+      // folder).
+      //
+      // Scripts ending with .py will be invoked with python (on all platforms)
+      // Scripts ending with .sh will be invoked with bash (on all platforms).
+      //   For Windows this uses the git-for-windows copy of bash, which is
+      //   mingw bash (in case you run into path issues, but since everything is
+      //   relative paths it should be pretty transparent).
+      // Other script suffixes are currently not supported.
+      //
+      // For example, if this is `["do_build.sh", "quickly"]`, then the recipe
+      // will do:
+      //
+      //   $ cd /path/to/checkout
+      //   $ export PATH=/path/to/tools_prefix:/path/to/tools_prefix/bin:$PATH
+      //   $ /path/to/checkout/.3pp/package_name/do_build.sh quickly \
+      //      /path/to/output_prefix
+      //      /path/to/deps_prefix
+      repeated string install = 1;
+
+      // (optional) List of other 3pp packages built for the host and put in
+      // $PATH.
+      //
+      // You may specify specific versions with the notation (useful if the
+      // current tool you're building is self-bootstrapping, like cmake):
+      //
+      //   package_name@version
+      //
+      // e.g. `ninja@1.8.2`
+      //
+      // Tools are always used with the host's ${platform} value (e.g. if cross
+      // compiling on linux, the tools will likely be for linux-amd64,
+      // regardless of whatever cross compile target you're aiming for).
+      //
+      // If no cipd_version is specified, the recipe will use the cipd version
+      // "latest".
+      //
+      // If tools have a specified version other than "latest", they are
+      // required to be already built and present in CIPD. If they're "latest"
+      // or unspecified, they may be built if they're not already in CIPD.
+      repeated string tool = 2;
+
+      // (optional) List of other 3pp packages built for the target and passed
+      // to the install command.
+      //
+      // Unlike `tools`, these may not specify versions.  The reason for this is
+      // that the dependency graph gets too complicated for this simple 3pp
+      // recipe to resolve. Instead, the versions used will be the version of
+      // the `source` of the indicated deps. If you want to update the deps,
+      // update their source entry to pull a different version.
+      repeated string dep = 3;
+
+      // TODO: options for controlling toolchain
+
+      // The docker environments for linux-amd64 is very old (in order to
+      // conform to PEP 513). As such, sometimes it's a hindrance for building
+      // universal packages (such as those using nodejs), as they're so old that
+      // node cannot run on them (!!).
+      //
+      // This option should be used VERY sparingly. A better solution would be
+      // to:
+      //   * Separate the docker image creation from the `dockerbuild` tool
+      //   (maybe as a 3pp package?) and allow an explicit dependency on
+      //   a dockcross-derived image here.
+      //   * OR, switch away from dockerbuild images and use dockcross directly,
+      //   using the normal linux-x64 by default, and optionally being able to
+      //   explicitly choose the manylinux-x64 for packages that need it.
+      bool no_docker_env = 4;
+
+      // If set, 3pp will not try to set up a compiler toolchain for this
+      // package. You can use this if your package is repackaging a prebuilt
+      // upstream package.
+      bool no_toolchain = 5;
+    }
+
+    // See CIPD documentation for specifics about these options.
+    message Package {
+      enum InstallMode {
+        copy    = 0;
+        symlink = 1;
+      }
+      // (optional) How the CIPD package should be installed on client machines.
+      //
+      // If omitted, this defaults to `copy`.
+      InstallMode install_mode = 1;
+
+      // (optional) The CIPD-installation-relative path to a version file.
+      //
+      // If omitted, no version file will be added to the package.
+      string version_file = 2;
+
+      // (optional) The alter_version fields are used to change the version
+      // number we tag in CIPD as `version`. This is useful for when the
+      // upstream source versions vary across platforms (for example).
+      //
+      // This is applied like:
+      //
+      //   re.sub(
+      //     alter_version_re,
+      //     alter_version_replace,
+      //     full_symver_without_patch_version)
+      //
+      // If these are specified, the uploaded package will also be tagged with
+      // an additional tag `real_version`. This will be the original value of
+      // `version` before transformation.
+      string alter_version_re = 3;
+      string alter_version_replace = 4;
+    }
+
+    message Verify {
+      // (required) Name (and args) of a script adjacent to 3pp.pb.
+      //
+      // Invoked after package with the built cipd package file as the first
+      // additional arg. $CWD is set to an empty folder that the test can use
+      // for scratch space, if it likes.
+      //
+      // For example if this is `["test.py", "extra_arg"]`, then the recipe will
+      // do:
+      //
+      //   $ cd /path/to/verify
+      //   $ python /path/to/repo/subdir/package_name/test.py extra_arg \
+      //      /path/to/built/cipd/package
+      repeated string test = 1;
+    }
+
+    // (optional) The platform_re field in each Create message is applied as
+    // a regex to ${platform}. Each matching Create message is applied in order
+    // using dict.update for each member message (i.e. ['source'].update,
+    // ['build'].update, etc.) to build a singular Create message for the
+    // current platform.
+    string platform_re = 1;
+
+    // (optional) If true, then the recipe will treat this package/platform as
+    // experimental. That is, it will prepend 'experimental/' to it's CIPD
+    // package name. This is the same effect as running the entire recipe in
+    // experimental mode, except on a per-package basis. The two experimental
+    // prefixes do not stack :).
+    bool experimental = 2;
+
+    // (optional) If true, all other fields are ignored and the recipe will
+    // return an error indicating that this package isn't configured for the
+    // current ${platform}.
+    bool unsupported = 3;
+
+    // (required) How to obtain the source for this pkg.
+    Source source = 4;
+
+    // (optional) How to transform the source into the output pkg.
+    //
+    // If this message is entirely omitted, then the output of the source stage
+    // will be used as the built result (useful for source packages, or python
+    // packages which don't need massaging).
+    //
+    // If this message is present, the package will be built according to the
+    // Build message.
+    Build build = 5;
+
+    // (optional) Options for creating a CIPD package from the built source.
+    Package package = 6;
+
+    // (optional) How to verify that the output pkg is useful.
+    Verify verify = 7;
+  }
+  // (required) How the package should be created.
+  //
+  // Multiple create messages can be specified, and they'll be combined together
+  // into a single Create message via the rules described in Create.platform_re.
+  // Required fields are checked on this combined Create message, so you can
+  // have multiple partial messages which combine into a complete message.
+  repeated Create create = 1;
+
+  message Upload {
+    // (required) The CIPD package name prefix to use when uploading.
+    //
+    // This is used as:
+    //
+    //   <pkg_prefix>/<pkg_name>/${platform}
+    //
+    // e.g. with the prefix `pkg/prefix` for the package `cool_thing`, you'd
+    // get:
+    //
+    //   pkg/prefix/cool_thing/${platform}
+    string pkg_prefix = 1;
+
+    // (optional) If set, then the output of the build is intended to be used by
+    // all platforms, and so the package we upload to will exclude the normal
+    // `${platform}` suffix. This will also cause the build for this package to
+    // ALWAYS run under the `linux-amd64` docker container (for consistency).
+    bool universal = 2;
+  }
+  // (required) Upload describes how the built package should be uploaded to
+  // CIPD.
+  Upload upload = 2;
+}
+
+enum Operator {
+  UNKNOWN = 0;
+
+  LT = 1;  // less-than
+  LE = 2;  // less-than-or-equal-to
+  GT = 3;  // greater-than
+  GE = 4;  // greater-than-or-equal-to
+  EQ = 5;  // equal-to
+  NE = 6;  // not-equal-to
+}
+
+// SemverRestriction expresses a restriction on a semver.
+//
+// When SemverRestriction is used to restrict some `$version`, it works like
+// `$version $op $val`. So, if this was `{op: LT val: "1.0"}`, then:
+//   * 1.1   would be excluded
+//   * 0.9   would be included
+//   * 0.9.9 would be included
+//
+// NOTE: Release candidates sort LOWER than their symver prefix. For example,
+// "1.0rc1" < "1.0". This makes sense if you think about it a bit, but it
+// implies that if you want to exclude "1.x", you need a rule
+// `{op: LT val: "1.0rc0"}`.
+message SemverRestriction {
+  // The comparison operator to use with this restriction.
+  Operator op = 1;
+
+  // The value to compare the version to.
+  string val = 2;
+}
+
+// Pulls package sources from a git repo.
+message GitSource {
+  // (required) The URL to the repo, e.g.
+  //
+  //   https://some.host.example.com/path/to/repo.git
+  string repo = 1;
+
+  // (optional) A substitution pattern where "%s" represents the location of the
+  // symver in a tag name.
+  //
+  // This is used for filter git repo tags for symantic version numbers. Some
+  // repos e.g. prefix their versions with `v`, or use other formats (e.g.
+  // "release/1.2.3").
+  //
+  // If omitted, this defaults to `%s` which would work for repos whose tags
+  // look like `refs/tags/1.2.3`.
+  //
+  // For example, if this was `v%s`, then this would look for the version 1.2.3
+  // as `refs/tags/v1.2.3`
+  string tag_pattern = 2;
+
+  // (optional) A list of SemverRestriction's to restrict the semvars from
+  // matched tags. You can use this to restrict which tags to consider when
+  // calculated the 'latest' version available.
+  //
+  // Note that if you over-constrain this, 3pp will simply see no available tags
+  // at all.
+  repeated SemverRestriction version_restriction = 4;
+
+  // (optional) version_join is a string used to join the portions of a version
+  // number together for repos which don't use "." as the joiner.
+  //
+  // If omitted, this defaults to ".", which would work for repos whose tags
+  // look like `refs/tags/1.2.3`.
+  //
+  // For example, if this is "-", then the recipe would transform the symantic
+  // version `1.2.3` into `1-2-3` before expanding it into tag_pattern to find
+  // the matching git tag.
+  string version_join = 3;
+}
+
+// Pulls sources from a CIPD package.
+message CipdSource {
+  // (required) The full CIPD package name of the source.
+  string pkg = 1;
+  // (required) A symver to use when this package is built without specifying
+  // a version (e.g. as a dep for some other package). This will translate
+  // to the CIPD tag of `version:$default_version`.
+  string default_version = 2;
+  // (required) The URL to the download page where we obtained this source. This
+  // is required, but is not used as part of the build, it's purely for
+  // documentation.
+  string original_download_url = 3;
+}
+
+// This is a custom catch-all script to probe for the latest version and
+// obtain the latest sources.
+//
+// This will be invoked as `script latest` and is expected to
+// print to stdout the latest symver available (e.g. `1.2.3`). The
+// $_3PP_VERSION environment variable is not present.
+//
+// If this version needs to be fetched, the script will be invoked as
+// `script checkout </abs/path/to/checkout>`. The checkout directory will
+// exist and be empty.
+message ScriptSource {
+  // (required) Name (and args) of a script adjacent to 3pp.pb.
+  //
+  // For example if this is `["fetch.py", "url"]`, then the recipe will
+  // do:
+  //
+  //   $ cd /nowhere/in/particular
+  //   $ python /path/to/repo/subdir/package_name/fetch.py url latest
+  //   1.2.3
+  //   $ _3PP_VERSION=1.2.3 python \
+  //     /path/to/repo/subdir/package_name/fetch.py url checkout \
+  //     /path/to/checkout
+  repeated string name = 1;
+}
+

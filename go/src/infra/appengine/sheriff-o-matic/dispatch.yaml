@@ -1,0 +1,10 @@
+dispatch:
+  - url: "*/_cron/analyze/*"
+    service: analyzer
+
+  - url: "*/_ah/queue/*"
+    service: analyzer
+
+  - url: "*/*"
+    service: default
+

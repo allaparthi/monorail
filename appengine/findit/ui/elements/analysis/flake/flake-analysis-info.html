@@ -1,0 +1,226 @@
+<link rel="import" href="/bower_components/polymer/polymer.html">
+<link rel="import" href="./../../components/expandable-card.html">
+
+<dom-module id="flake-analysis-info">
+  <template>
+    <style>
+      :host {
+        display: inline-block;
+        width: 100%;
+      }
+
+      #header {
+        display: inline-block;
+        padding-top: 10px;
+        padding-bottom: 10px;
+
+        font-size: 16px;
+        font-weight: bold;
+        text-align: left;
+
+        color: black;
+      }
+
+      td {
+        padding: 0 10px;
+      }
+
+      tr:nth-child(odd) {
+        background-color: #f2f2f2;
+      }
+
+      ul {
+        padding-left: 20px;
+        margin-top: 0;
+        margin-bottom: 0;
+      }
+
+      .title {
+        font-size: 16px;
+        font-weight: bold;
+        color: black;
+        text-align: left;
+      }
+
+      .description {
+        font-weight: 500;
+        text-align: right;
+        vertical-align: top;
+      }
+
+      .data {
+        color: darkslategrey;
+      }
+
+      .pending {
+        color: #666666;
+        background-color: #fffc6c;
+        border-color: #c5c56d;
+      }
+
+      .completed {
+        color: #ffffff;
+        background-color: #8fdf5f;
+        border-color: #4f8530;
+      }
+
+      .running {
+        color: #666666;
+        background-color: #fffc6c;
+        border-color: #c5c56d;
+      }
+
+      .error {
+        color: #ffffff;
+        background-color: #e98080;
+        border-color: #a77272;
+      }
+
+    </style>
+    <!-- End style. -->
+    <expandable-card>
+      <div id="header" slot="expandable-card-header" inner-h-t-m-l="[[_computeAnalysisResults]]"></div>
+      <div slot="expandable-card-content">
+        <table>
+          <tr>
+            <td class="description">Occurrence</td>
+            <td>
+              <table>
+                <tr>
+                  <td class="description">Build</td>
+                  <td class="data selectable"><a href="https://ci.chromium.org/b/[[buildId]]">[[masterName]]/[[builderName]]/[[buildNumber]]</a></td>
+                </tr>
+                <tr>
+                  <td class="description">Step</td>
+                  <td class="data selectable">[[stepName]]</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Show heuristic analysis results if any. -->
+          <template is="dom-if" if="[[hasHeuristicAnalysisResults(heuristicAnalysisResults)]]">
+            <tr>
+              <td class="description">Heuristic Analysis</td>
+              <td class="data">
+                  <template is="dom-repeat" items="{{heuristicAnalysisResults}}">
+                    <a href="{{item.url}}">{{item.commit_position}}</a>&nbsp;
+                  </template>
+              </td>
+            </tr>
+          </template>
+
+          <!-- Show error description if any. -->
+          <template is="dom-if" if="[[hasError(status)]]">
+            <tr>
+              <td class="description">Error</td>
+              <td class="data">[[error]]</td>
+            </tr>
+          </template>
+
+        </table>
+      </div>
+    </expandable-card>
+  </template>
+
+  <script>
+    (function () {
+      'use strict';
+      Polymer({
+        is: 'flake-analysis-info',
+
+        properties: {
+          // Flake occurrence info.
+          masterName: String,
+          builderName: String,
+          buildNumber: Number,
+          buildId: String,
+          stepName: String,
+          testName: String,
+
+          // Analysis info.
+          status: String,
+          regressionRangeUpper: String,
+          regressionRangeLower: String,
+          heuristicAnalysisResults: Array,
+          culpritUrl: String,
+          culpritRevision: String,
+          culpritConfidence: String,
+          bugId: String,
+          error: String,
+
+          _computeAnalysisResults: {
+            type: String,
+            computed: 'computeAnalysisResults(status, culpritConfidence, culpritUrl, culpritRevision, bugId)'
+          },
+        },
+
+        computeAnalysisResults: function (status, culpritConfidence, culpritUrl, culpritRevision, bugId) {
+          var extraInfo = "";
+          var result = "";
+          status = status.toLowerCase();
+
+          if (status === "completed") {
+            result = "Analysis completed.";
+          } else if (status === "pending") {
+            result = "Analysis pending.";
+          } else if (status === "error"){
+            result = "Analysis errored.";
+          } else {
+            result = "Analysis running.";
+          }
+
+          // Add extra information.
+          if (culpritUrl) {
+            extraInfo += (" Culprit: <a href='" + culpritUrl + "'>" +
+                          culpritRevision + "</a> ");
+            extraInfo += "(Confidence " + culpritConfidence + "%).";
+          } else if (this.regressionRangeFound(this.regressionRangeLower, this.regressionRangeUpper)) {
+            extraInfo += " Regression range: ";
+            extraInfo += ("<a href='https://crrev.com/" + this.regressionRangeLower + ".." + this.regressionRangeUpper + "?pretty=fuller'>" +
+                          this.regressionRangeLower + ".." + this.regressionRangeUpper + ".</a>");
+          } else if (this.onlyUpperBoundFound(this.regressionRangeLower, this.regressionRangeUpper)) {
+            extraInfo += " Regression range: ";
+            extraInfo += "?.." + this.regressionRangeUpper;
+          }
+
+          if (this.flakeIsNotReproducible(this.regressionRangeLower, this.regressionRangeUpper)) {
+            extraInfo += "Unreproducible.";
+          }
+
+          if (bugId) {
+            extraInfo += (" Bug: <a href='https://crbug.com/" + bugId + "'>" +
+                          bugId + "</a>. ");
+          }
+
+          if (extraInfo) {
+            result = result + " " + extraInfo;
+          }
+
+          return result;
+        },
+
+        regressionRangeFound: function(regressionRangeLower, regressionRangeUpper) {
+          return regressionRangeLower && regressionRangeUpper;
+        },
+
+        onlyUpperBoundFound: function(regressionRangeLower, regressionRangeUpper) {
+          return !regressionRangeLower && regressionRangeUpper;
+        },
+
+        flakeIsNotReproducible: function(regressionRangeLower, regressionRangeUpper) {
+          return regressionRangeLower && !regressionRangeUpper;
+        },
+
+        hasHeuristicAnalysisResults: function(heuristicAnalysisResults) {
+          return heuristicAnalysisResults && heuristicAnalysisResults.length > 0;
+        },
+
+        hasError: function(status){
+          return status.toLowerCase() === 'error';
+        },
+
+      });
+    })();
+  </script>
+</dom-module>

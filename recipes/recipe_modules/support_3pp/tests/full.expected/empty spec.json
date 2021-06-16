@@ -1,0 +1,69 @@
+[
+  {
+    "cmd": [
+      "echo",
+      "3pp/"
+    ],
+    "env": {
+      "CIPD_CACHE_DIR": "[CLEANUP]/tmp_tmp_1"
+    },
+    "name": "echo package_prefix"
+  },
+  {
+    "cmd": [
+      "vpython",
+      "-u",
+      "RECIPE_MODULE[recipe_engine::file]/resources/fileutil.py",
+      "--json-output",
+      "/path/to/tmp/json",
+      "glob",
+      "[CACHE]/builder/package_repo",
+      "*/3pp.pb"
+    ],
+    "env": {
+      "CIPD_CACHE_DIR": "[CLEANUP]/tmp_tmp_1"
+    },
+    "infra_step": true,
+    "name": "find package specs",
+    "~followup_annotations": [
+      "@@@STEP_LOG_LINE@glob@[CACHE]/builder/package_repo/[CACHE]/builder/package_repo/bad/3pp.pb@@@",
+      "@@@STEP_LOG_END@glob@@@"
+    ]
+  },
+  {
+    "cmd": [],
+    "name": "load package specs",
+    "~followup_annotations": [
+      "@@@STEP_FAILURE@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "vpython",
+      "-u",
+      "RECIPE_MODULE[recipe_engine::file]/resources/fileutil.py",
+      "--json-output",
+      "/path/to/tmp/json",
+      "copy",
+      "[CACHE]/builder/package_repo/[CACHE]/builder/package_repo/bad/3pp.pb",
+      "/path/to/tmp/"
+    ],
+    "env": {
+      "CIPD_CACHE_DIR": "[CLEANUP]/tmp_tmp_1"
+    },
+    "infra_step": true,
+    "name": "load package specs.read 'bad'",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@1@@@",
+      "@@@STEP_LOG_END@3pp.pb@@@",
+      "@@@STEP_FAILURE@@@"
+    ]
+  },
+  {
+    "failure": {
+      "failure": {},
+      "humanReason": "Bad spec PB for 'bad'"
+    },
+    "name": "$result"
+  }
+]

@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<title>ChopsTimestamp</title>
+<meta charset="utf-8">
+<script src="../../webcomponentsjs/webcomponents-lite.js"></script>
+<script src="../../web-component-tester/browser.js"></script>
+<link rel="import" href="../chops-timestamp.html">
+
+<test-fixture id="chops-timestamp-test">
+  <template>
+    <chops-timestamp></chops-timestamp>
+  </template>
+</test-fixture>
+
+<script>
+  'use strict';
+
+  suite('chops-timestamp', function() {
+    let element;
+    setup(function() {
+      element = fixture('chops-timestamp-test');
+      element.date = new Date();
+    });
+
+    test('changes propogated', function(done) {
+      let formattingStub = sinon.stub(element, '_computeDisplayedTime');
+      element.dateFormat = "ddd D MMM 'YY, h:mm a [LSKJFLSKDJFLKSDFJ]";
+
+      element.date = new Date();
+      sinon.assert.calledOnce(formattingStub);
+      done();
+    });
+
+  });
+</script>

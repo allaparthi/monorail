@@ -1,0 +1,10 @@
+{{status_title}}
+
+{{build_url}}
+
+--=>  {{status_text}}  <=--
+
+Revision: {{revisions}}
+Blame list: {{blame_list}}
+
+Waterfall: http://ci.chromium.org/

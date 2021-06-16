@@ -1,0 +1,93 @@
+[
+  {
+    "cmd": [
+      "echo",
+      "3pp/"
+    ],
+    "env": {
+      "CIPD_CACHE_DIR": "[CLEANUP]/tmp_tmp_1"
+    },
+    "name": "echo package_prefix"
+  },
+  {
+    "cmd": [
+      "vpython",
+      "-u",
+      "RECIPE_MODULE[recipe_engine::file]/resources/fileutil.py",
+      "--json-output",
+      "/path/to/tmp/json",
+      "glob",
+      "[CACHE]/builder/package_repo",
+      "*/3pp.pb"
+    ],
+    "env": {
+      "CIPD_CACHE_DIR": "[CLEANUP]/tmp_tmp_1"
+    },
+    "infra_step": true,
+    "name": "find package specs",
+    "~followup_annotations": [
+      "@@@STEP_LOG_LINE@glob@[CACHE]/builder/package_repo/[CACHE]/builder/package_repo/bad/3pp.pb@@@",
+      "@@@STEP_LOG_END@glob@@@"
+    ]
+  },
+  {
+    "cmd": [],
+    "name": "load package specs",
+    "~followup_annotations": [
+      "@@@STEP_EXCEPTION@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "vpython",
+      "-u",
+      "RECIPE_MODULE[recipe_engine::file]/resources/fileutil.py",
+      "--json-output",
+      "/path/to/tmp/json",
+      "copy",
+      "[CACHE]/builder/package_repo/[CACHE]/builder/package_repo/bad/3pp.pb",
+      "/path/to/tmp/"
+    ],
+    "env": {
+      "CIPD_CACHE_DIR": "[CLEANUP]/tmp_tmp_1"
+    },
+    "infra_step": true,
+    "name": "load package specs.read 'bad'",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@1@@@",
+      "@@@STEP_LOG_LINE@3pp.pb@narwhal@@@",
+      "@@@STEP_LOG_END@3pp.pb@@@"
+    ]
+  },
+  {
+    "cmd": [],
+    "name": "RECIPE CRASH (Uncaught exception)",
+    "~followup_annotations": [
+      "@@@STEP_EXCEPTION@@@",
+      "The recipe has crashed at point 'Uncaught exception'!",
+      "",
+      "Traceback (most recent call last):",
+      "  File \"RECIPE_REPO[recipe_engine]/recipe_engine/internal/engine.py\", in run_steps",
+      "    raw_result = recipe_obj.run_steps(api, engine)",
+      "  File \"RECIPE_REPO[recipe_engine]/recipe_engine/internal/recipe_deps.py\", in run_steps",
+      "    properties_def, api=api)",
+      "  File \"RECIPE_REPO[recipe_engine]/recipe_engine/internal/property_invoker.py\", in invoke_with_properties",
+      "    arg_names, **additional_args)",
+      "  File \"RECIPE_REPO[recipe_engine]/recipe_engine/internal/property_invoker.py\", in _invoke_with_properties",
+      "    return callable_obj(*props, **additional_args)",
+      "  File \"RECIPE_REPO[infra]/recipes/recipe_modules/support_3pp/tests/full.py\", line 39, in RunSteps",
+      "    builder.join('package_repo'))",
+      "  File \"RECIPE_REPO[recipe_engine]/recipe_engine/recipe_api.py\", in _inner",
+      "    return func(*a, **kw)",
+      "  File \"RECIPE_REPO[infra]/recipes/recipe_modules/support_3pp/api.py\", line 569, in load_packages_from_path",
+      "    raise BadParse('While adding %r: %r' % (pkg, str(ex)))",
+      "BadParse: While adding 'bad': '1:1 : Message type \"recipe_modules.infra.support_3pp.Spec\" has no field named \"narwhal\".'"
+    ]
+  },
+  {
+    "failure": {
+      "humanReason": "Uncaught Exception: BadParse('While adding \\'bad\\': \\'1:1 : Message type \"recipe_modules.infra.support_3pp.Spec\" has no field named \"narwhal\".\\'',)"
+    },
+    "name": "$result"
+  }
+]

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<title>userLoginTest</title>
+<meta charset="utf-8">
+<link rel="import" href="../chops-login.html">
+<script src="../../webcomponentsjs/webcomponents-lite.js"></script>
+<script src="../../web-component-tester/browser.js"></script>
+
+<test-fixture id="chops-login-test">
+  <template>
+    <chops-login></chops-login>
+  </template>
+</test-fixture>
+
+<script>
+  'use strict';
+
+  suite('chops-login', function() {
+    var element;
+    setup(function() {
+      element = fixture('chops-login-test');
+      element.loginUrl = 'https://www.google.com/';
+      element.logoutUrl = 'https://www.google.com/';
+    });
+
+    test('test login', function(done) {
+      element.user = 'testUser@gmail.com';
+      flush(function() {
+        expect(element.shadowRoot.querySelectorAll('template')[0]).to.be.visibile;
+        expect(element.shadowRoot.querySelectorAll('template')[1]).to.be.not.visibile;
+        done();
+      });
+    });
+    test('test logout', function(done) {
+      flush(function() {
+        expect(element.shadowRoot.querySelectorAll('template')[0]).to.be.not.visibile;
+        expect(element.shadowRoot.querySelectorAll('template')[1]).to.be.visibile;
+        done();
+      });
+    });
+  });
+</script>

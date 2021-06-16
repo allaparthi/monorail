@@ -1,0 +1,52 @@
+// Copyright 2018 The LUCI Authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+syntax = "proto3";
+package protos;
+
+import "google/protobuf/timestamp.proto";
+
+// WorkerQueue represents a task request that is pending assignment to a given
+// worker and optionally the expected task on the worker to preempt.
+//
+// Note: the name WorkerQueue is a legacy name, which is why it isn't a great
+// match for what it represents.
+message WorkerQueue {
+	// EnqueueTime is the time at which the pending assignment was created
+	// by the scheduler.
+	google.protobuf.Timestamp enqueue_time = 1;
+
+	// TaskToAssign is the id of the task that should be assigned to this worker.
+	string task_to_assign = 2;
+
+	// TaskToAbort is the id of the task that should be aborted on this worker.
+	//
+	// An empty string indicates that there is no task to abort.
+	string task_to_abort = 3;
+}
+
+// ReconcilerState represents a reconciler. It holds tasks that are pending
+// assignment to workers and tasks that have errored out.
+message Reconciler {
+	// WorkerQueues holds pending assignments for workers.
+	//
+	// An assignment remains pending until a notification from Swarming
+	// acknowledges that it has taken place.
+	map<string, WorkerQueue> worker_queues = 1;
+
+	// TaskErrors is a map from task ids that had an error to the error description.
+	//
+	// Task errors remain pending until a notification from Swarming acknowledges
+	// that the task is no longer pending.
+	map<string, string> task_errors = 2;
+}

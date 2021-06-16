@@ -1,0 +1,21 @@
+<link rel="import" href="../../bower_components/polymer/polymer-element.html">
+
+<script src='../../bower_components/marked/lib/marked.js'></script>
+
+<dom-module id="som-marked-element">
+  <template>
+    <style>
+      #markdownElement {
+        display: inline-block;
+      }
+      #markdownElement p {
+        margin: 0;
+      }
+      #markdownElement a {
+        color: #222;
+      }
+    </style>
+    <span id="markdownElement"></span>
+  </template>
+  <script src="som-marked-element.js"></script>
+</dom-module>

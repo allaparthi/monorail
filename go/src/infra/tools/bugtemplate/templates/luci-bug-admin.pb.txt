@@ -1,0 +1,49 @@
+summary: "Requesting a change"
+
+description: <<END
+
+This is http://go/luci-bug-admin.
+
+Please fill out the relevant section and **delete the others** and also adjust
+the summary to match your request.
+
+
+=== Create a new chrome-infra-auth group ===
+Name:
+Owning group:
+Short description:
+
+
+=== Create a root CIPD prefix ===
+Prefix:
+Owning group:
+What will be there:
+
+NOTE: editing ACLs of existing CIPD prefix is responsibility of the prefix
+OWNER, which you can find via `cipd acl-list <prefix>` command, e.g.:
+  $ cipd acl-list infra/tools/cpython
+
+
+=== Edit permissions to view LUCI BigQuery data ===
+
+Data type: <Swarming host> | Buildbucket | CQ
+
+LUCI Project:
+(or link to cr-buildbucket.cfg file)
+
+Table / View:
+(for Buildbucket and CQ, default is to get access to a view scoped for one or
+several related LUCI projects)
+
+MDB or google groups readers to add/remove:
+
+
+**NOTE to whoever handles a bug: add "BigQuery Data Viewer" role only.
+
+
+END
+
+components: "Infra>Platform>Admin"
+type: Task
+pri: P1
+labels: "Restrict-View-Google"

@@ -1,0 +1,82 @@
+<link rel="import" href="/bower_components/polymer/polymer.html">
+<link rel="import" href="/bower_components/paper-tooltip/paper-tooltip.html">
+
+<dom-module id="day-icon">
+  <template>
+    <style>
+      :host {
+        --activity-color: #f2f2f2;
+        margin: 0.25em .8rem;
+      }
+      div {
+        margin: auto;
+        background-color: var(--activity-color);
+        height: 24px;
+        width: 24px;
+        border: 2px solid #fff;
+        transition: border-color .5s;
+      }
+      div:hover {
+        cursor: pointer;
+        border: 2px solid #758A5C;
+      }
+      div.selected {
+        border: 2px solid #222;
+      }
+    </style>
+    <div class$="[[_computeClass(selected)]]">
+      <paper-tooltip>
+        [[changes]] CLs<br/>
+        [[bugs]] bugs
+      </paper-tooltip>
+    </div>
+  </template>
+  <script>
+    'use strict';
+
+    class DayIcon extends Polymer.Element {
+      static get is() { return 'day-icon'; }
+
+      static get properties() {
+        return {
+          changes: {
+            type: Number,
+            value: 0,
+          },
+          bugs:  {
+            type: Number,
+            value: 0,
+          },
+          selected: {
+            type: Boolean,
+            value: false,
+          },
+        }
+      }
+
+      static get observers() {
+        return [
+          'computeActivityLevel(changes, bugs)'
+        ]
+      }
+
+      computeActivityLevel(cls, bugs) {
+        const activityNum = (cls + bugs);
+        let color;
+        if (activityNum >= 7) {
+          color = '#6eb814';
+        } else if (activityNum >= 5) {
+          color = '#bce889';
+        } else if (activityNum >= 2) {
+          color = '#e0f5c7';
+        }
+        this.updateStyles({'--activity-color': color});
+      }
+
+      _computeClass(selected) {
+        return selected ? 'selected' : '';
+      }
+    }
+    customElements.define(DayIcon.is, DayIcon);
+  </script>
+</dom-module>

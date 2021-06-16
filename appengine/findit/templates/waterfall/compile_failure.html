@@ -1,0 +1,103 @@
+{% extends "build_failure.html" %}
+
+{% block title %}Compile{% endblock title %}
+
+{% block style %}
+    .warning {
+      color: RED;
+    }
+{% endblock style %}
+
+{% block heading %}
+<font color="red">Compile Failure:</font>
+{% endblock heading %}
+
+
+{% block failure_info %}
+    {% if build_number != first_failure %}
+      Current Failure: <a href="https://ci.chromium.org/b/{{build_id}}" target="_blank">{{build_number}}</a><br>
+      First Failure: <a href="https://ci.chromium.org/b/{{first_failure_build_id}}" target="_blank">{{first_failure}}</a><br>
+    {% else %}
+      First Failure: <a href="https://ci.chromium.org/b/{{build_id}}" target="_blank">{{build_number}}</a><br>
+    {% endif %}
+    {% if infra_exception %}
+      <div class="warning">This build failed due to an infra exception. Analysis skipped.</div>
+    {% else %}
+      {% if last_pass %}
+        Last Pass: <a href="https://ci.chromium.org/b/{{last_pass_build_id}}" target="_blank">{{last_pass}}</a><br>
+        {% if last_pass + 1 != first_failure %}
+        <div class="warning">Be careful, compile was not run or purple in builds before first failure!</div>
+        {% endif %}
+      {% else %}
+        <div class="warning">Last Pass: Unknown!</div>
+      {% endif %}
+    {% endif %}
+    {%if show_debug_info %}
+      <a href="/waterfall/failure-log?url=https://build.chromium.org/p/{{master_name}}/builders/{{builder_name}}/builds/{{build_number}}/steps/compile/logs/stdio" target="_blank">compile stdio</a>
+    {% else %}
+      <a href="https://build.chromium.org/p/{{master_name}}/builders/{{builder_name}}/builds/{{build_number}}/steps/compile/logs/stdio" target="_blank">compile stdio</a>
+    {% endif %}
+{% endblock failure_info %}
+
+{% block try_job_result %}
+  {% set show_heuristic = True %}
+  {% if try_job %}
+  <div>
+    <b>Try-job Result:</b><br>
+    Status: <span class="{{try_job.status}}">{{try_job.status}}</span>
+    {% if try_job.url %}
+      <a href="{{try_job.url}}">try-job</a>
+    {% endif %}
+    <br>
+      {% if try_job.completed %}
+        {% if try_job.failed %}
+          <span class="error">Try job ran into error!</span>
+        {% elif try_job.culprit %}
+        {% set show_heuristic = False %}
+        Culprit: {{try_job.culprit.repo_name or 'chromium'}} <a href="{{try_job.culprit.url or try_job.culprit.review_url or ('https://chromium.googlesource.com/chromium/src.git/+/' + try_job.culprit.revision)}}" target="_blank">{{try_job.culprit.commit_position or try_job.culprit.revision}}</a>
+        {% else %}
+          <div>No culprit found!</div>
+        {% endif%}
+      {% endif%}
+  </div>
+  {% endif%}
+{% endblock try_job_result %}
+
+{% block result_tables %}
+  <div>
+    <br>
+    <b>Heuristic result:</b>
+    {% if analysis_failed %}
+      <div class="error">No result because of some error in analysis!</div>
+    {% elif suspected_cls_by_heuristic|length == 0 %}
+      <div>No culprit is found!</div>
+    {% else %}
+      <div id="heuristic_result">
+        <table>
+          <tr>
+            <th title="The build cycle in which the culprit was in">Build Number</th>
+            <th title="Git repo name and commit position/hash of the suspect">Suspect</th>
+            <th title="The higher score, the more suspected">Score(<a class="score-info" href="#">?</a>)</th>
+            <th title="Why this CL is related to the failure">Hints</th>
+          </tr>
+          <tbody>
+            {% for suspected_cl in suspected_cls_by_heuristic %}
+            <tr>
+              <td><a href="https://ci.chromium.org/b/{{suspected_cl.build_id}}" target="_blank">{{suspected_cl.build_number}}</a></td>
+              <td>
+                {{suspected_cl.repo_name}} <a href="{{suspected_cl.url}}" target="_blank">{{suspected_cl.commit_position or suspected_cl.revision}}</a>
+              </td>
+              <td>{{suspected_cl.score}}</td>
+              <td>
+                {% for hint, _ in suspected_cl.hints|dictsort(case_sensitive=True, by='value')|reverse %}
+                  <li>{{hint}}</li>
+                {% endfor %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+  </div>
+{% endblock result_tables %}

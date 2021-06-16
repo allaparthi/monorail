@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<script src="/bower_components/webcomponentsjs/webcomponents-loader.js"></script>
+<script src="/bower_components/web-component-tester/browser.js"></script>
+<link rel="import" href="/bower_components/iron-test-helpers/iron-test-helpers.html">
+<link rel="import" href="/elements/som-app/som-app.html">
+<test-fixture id="basic">
+  <template>
+    <som-app></som-app>
+  </template>
+</test-fixture>
+<script>
+(function() {
+  'use strict';
+  var element;
+  var server;
+  var responseHeaders = {
+      json: {'Content-Type': 'application/json'},
+      text: {'Content-Type': 'text/html'},
+  };
+
+  // FIXME: Use stub elements to mock out som-drawer
+  // https://www.polymer-project.org/1.0/docs/tools/tests#create-stub-elements
+  setup(function() {
+    element = fixture('basic');
+    sinon.stub(window, 'fetch');
+
+    // A response to the request to retrieve alerts.
+    window.fetch.returns(Promise.resolve());
+
+    server = sinon.fakeServer.create();
+    server.respondWith(
+      'GET',
+      '/api/v1/trees', [
+        200,
+        responseHeaders.json,
+        '[]'
+      ]
+    );
+  });
+
+  teardown(function() {
+    server.restore();
+
+    window.fetch.restore();
+  });
+
+  suite('basic tests', function() {
+    test('renders bare minimum', function() {
+      element.alertsTimes = {
+        test: new Date()
+      };
+
+      expect(element.$.lastUpdatedTime).be.hidden;
+      expect(element.$.lastUpdatedUnknown).be.visible;
+    });
+  });
+
+  suite('navigation', function() {
+    setup(function() {
+      element.treesJson = '[{"name": "chromium"}, {"name": "chromium.perf"}]';
+      element.$.url.path = '/chromium';
+    });
+
+    test('sync iron-page-url to alertsGroup and drawer selection', function(done) {
+      element.$.url.path = '/chromium.perf';
+      flush(function() {
+        assert.equal('chromium.perf', element._tree.name);
+        assert.equal('chromium.perf', element.$.drawer.tree.name);
+        done();
+      });
+    });
+
+    test('sync drawer selection to alertsGroup to iron-page-url', function() {
+      element.$.drawer.path = '/chromium.perf';
+      assert.equal('/chromium.perf', element.$.url.path);
+      assert.equal('chromium.perf', element._tree.name);
+    });
+  });
+
+  suite('refresh', function() {
+    var refreshStub;
+
+    setup(function() {
+      refreshStub = sinon.stub(element, '_refresh');
+    });
+
+    test('refreshes when refresh is clicked', function() {
+      element.$.refresh.click();
+      sinon.assert.calledOnce(refreshStub);
+    });
+  });
+})();
+</script>

@@ -1,0 +1,48 @@
+application: chromium-who
+
+runtime: go
+api_version: go1
+instance_class: F4
+service: default
+
+handlers:
+- url: /bower_components
+  static_dir: bower_components
+  secure: always
+
+- url: /node_modules
+  static_dir: node_modules
+  secure: always
+
+- url: /images
+  static_dir: images
+  secure: always
+
+- url: /elements
+  static_dir: elements
+  secure: always
+
+- url: /scripts
+  static_dir: scripts
+  secure: always
+
+- url: /.*
+  script: _go_app
+  secure: always
+
+skip_files:
+- ^(.*/)?#.*#$
+- ^(.*/)?.*~$
+- ^(.*/)?.*\.py[co]$
+- ^(.*/)?.*/RCS/.*$
+- ^(.*/)?\..*$
+- ^bower_components/web-component-tester$
+- ^bower_components/accessibility-developer-tools$
+- ^bower_components/async$
+- ^bower_components/chai$
+- ^bower_components/lodash$
+- ^bower_components/mocha$
+- ^bower_components/sinon-chai$
+- ^bower_components/sinonjs$
+- ^bower_components/stacky$
+- ^bower_components/test-fixture$

@@ -1,0 +1,102 @@
+application: findit-for-me-staging
+version: 1
+runtime: python27
+api_version: 1
+threadsafe: true
+module: default
+instance_class: F4
+automatic_scaling:
+  min_idle_instances: 1
+  max_concurrent_requests: 25
+
+builtins:
+  - remote_api: on
+
+handlers:
+# Static resources.
+- url: /robots.txt
+  static_files: static/robots.txt
+  upload: static/robots.txt
+  secure: always
+
+- url: /bower_components
+  static_dir: third_party/bower_components
+  secure: always
+
+- url: /ui
+  static_dir: ui
+  secure: always
+
+- url: /common.css
+  static_files: static/common.css
+  upload: static/common.css
+  secure: always
+
+- url: /js/flot/(.*\.js)$
+  static_files: third_party/flot/\1
+  upload: third_party/flot/.*\.js$
+  secure: always
+
+# icon
+- url: /favicon.ico
+  mime_type: image/x-icon
+  static_files: static/images/favicon.ico
+  upload: static/images/favicon.ico
+  secure: always
+
+# images
+- url: /images
+  static_dir: static/images
+  secure: always
+
+# Enable the admin console for interactive operations, etc.
+- url: /_ah/admin_console(/.*)?
+  script: google.appengine.ext.admin.application
+  login: admin
+  secure: always
+
+# Pipeline status UI handler.
+- url: /_ah/pipeline(/.*)?
+  script: default_main.pipeline_status_application
+  secure: always
+
+# Endpoints handler.
+- url: /_ah/push-handlers/.*
+  script: default_main.default_web_application
+  # Protect PubSub push endpoints with admin login:
+  # https://cloud.google.com/pubsub/docs/push#app-engine-standard-endpoints
+  login: admin
+  secure: always
+
+- url: /_ah/api/.*
+  script: default_main.api_application
+  secure: always
+
+- url: /.*
+  script: default_main.default_web_application
+  secure: always
+
+includes:
+- first_party/gae_ts_mon  # handles /internal/cron/ts_mon/send
+
+skip_files:
+- ^(.*/)?#.*#$
+- ^(.*/)?.*~$
+- ^(.*/)?.*\.py[co]$
+- ^(.*/)?.*_test\.py$
+- ^(.*/)?tests\.py$
+- ^(.*/)?\..*$
+- ^(.*/)?.*\.md$
+- ^(.*/)?README$
+- ^(.*/)?Makefile$
+- ^(.*/)?util_scripts/.*$
+
+libraries:
+- name: webapp2
+  version: latest
+- name: jinja2
+  version: latest
+- name: pycrypto
+  version: latest
+- name: endpoints
+  version: 1.0

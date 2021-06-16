@@ -1,0 +1,51 @@
+runtime: go111
+instance_class: F4
+service: default
+
+handlers:
+- url: /bower_components
+  static_dir: bower_components
+  secure: always
+
+- url: /images
+  static_dir: images
+  secure: always
+
+- url: /elements
+  static_dir: elements
+  secure: always
+
+- url: /scripts
+  static_dir: scripts
+  secure: always
+
+- url: /test
+  static_dir: test
+  secure: always
+
+- url: /api/.*
+  script: auto
+  secure: always
+
+- url: /_cron/.*
+  script: auto
+  secure: always
+  login: admin
+
+- url: /internal/.*
+  script: auto
+  secure: always
+  login: admin
+
+- url: /_ah/push-handlers/.*
+  script: auto
+  login: admin
+
+- url: /google03daf1850f438695\.html
+  static_files: static/google03daf1850f438695.html
+  secure: always
+  upload: static/google03daf1850f438695.html
+
+- url: /.*
+  script: auto
+  secure: always

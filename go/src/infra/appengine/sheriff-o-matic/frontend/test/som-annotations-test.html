@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<script src="/bower_components/webcomponentsjs/webcomponents-loader.js"></script>
+<script src="/bower_components/web-component-tester/browser.js"></script>
+<link rel="import" href="/bower_components/iron-test-helpers/iron-test-helpers.html">
+<link rel="import" href="/elements/som-annotations/som-annotations.html">
+<test-fixture id="basic">
+  <template>
+    <som-annotations></som-annotations>
+  </template>
+</test-fixture>
+<script>
+(function() {
+  'use strict';
+  var clock;
+  var element;
+  var responseHeaders = {
+      json: {'Content-Type': 'application/json'},
+      text: {'Content-Type': 'text/html'},
+  };
+
+  setup(function() {
+    element = fixture('basic');
+    clock = sinon.useFakeTimers();
+    sinon.stub(window, 'fetch');
+  });
+
+  teardown(function() {
+    window.fetch.restore();
+  });
+
+  suite('network requests', function() {
+    test('send fetch all annotation request', function(done) {
+      let res = new window.Response(JSON.stringify({
+        hi: 3
+      }), {
+        status: 200,
+        headers: {
+          'Content-type': 'application/json',
+        }
+      });
+
+      window.fetch.returns(Promise.resolve(res));
+
+      element.fetchAnnotations();
+      flush(() => {
+        assert.equal(window.fetch.callCount, 1);
+        assert.deepEqual(element._annotationsResp, {hi:3});
+        done();
+      });
+    });
+
+    test('send change annotation request', function(done) {
+      let res = new window.Response(JSON.stringify({
+        key: "bestkey",
+        hi: 3,
+      }), {
+        status: 200,
+        headers: {
+          'Content-type': 'application/json',
+        }
+      });
+
+      window.fetch.returns(Promise.resolve(res));
+      element.xsrfToken = 'xr';
+      element.tree = {
+        name: 'treeworld',
+      };
+      let promise = element.sendAnnotation('bestkey', 'type', {
+        foo: 'bar'
+      });
+      flush(() => {
+        assert.equal(window.fetch.callCount, 1);
+        let args = window.fetch.firstCall.args;
+        assert.equal(args[0], '/api/v1/annotations/treeworld/type');
+        let parsed = args[1];
+        assert.isDefined(parsed.body);
+        parsed.body = JSON.parse(parsed.body);
+        assert.deepEqual(parsed, {
+          body: {
+            xsrf_token: 'xr',
+            data: {
+              key: 'bestkey',
+              foo: 'bar',
+            }
+          },
+          method: 'POST',
+          credentials: 'include',
+        });
+
+        assert.deepEqual(element._annotationsResp, [{key: "bestkey", hi:3}]);
+        promise.then((value) => {
+          assert.deepEqual(value, {
+            key: "bestkey",
+            hi: 3,
+          });
+          done();
+        });
+      });
+    });
+
+    test('refresh xsrf token', function(done) {
+      let res1 = new window.Response('token expired', { status: 403 });
+      let res2 = new window.Response(JSON.stringify({
+        token: 'tok',
+      }), {
+        status: 200,
+        headers: {
+          'Content-type': 'application/json',
+        }
+      });
+      let res3 = new window.Response('resp', { status: 200 });
+
+      window.fetch.onCall(0).returns(Promise.resolve(res1));
+      window.fetch.onCall(1).returns(Promise.resolve(res2));
+      window.fetch.onCall(2).returns(Promise.resolve(res3));
+
+      element.xsrfToken = 'xr';
+
+      let promise = element.postJSON('/url', {
+        foo: 'bar'
+      });
+      flush(() => {
+        assert.equal(window.fetch.callCount, 3);
+        let args = window.fetch.firstCall.args;
+        assert.equal(args[0], '/url');
+        let parsed = args[1];
+        assert.isDefined(parsed.body);
+        parsed.body = JSON.parse(parsed.body);
+        assert.deepEqual(parsed, {
+          body: {
+            xsrf_token: 'xr',
+            data: {
+              foo: 'bar'
+            }
+          },
+          method: 'POST',
+          credentials: 'include',
+        });
+
+        args = window.fetch.secondCall.args;
+        assert.equal(args[0], '/api/v1/xsrf_token');
+
+        args = window.fetch.thirdCall.args;
+        assert.equal(args[0], '/url');
+        parsed = args[1];
+        assert.isDefined(parsed.body);
+        parsed.body = JSON.parse(parsed.body);
+        assert.deepEqual(parsed, {
+          body: {
+            xsrf_token: 'tok',
+            data: {
+              foo: 'bar'
+            }
+          },
+          method: 'POST',
+          credentials: 'include',
+        });
+        done();
+      });
+    });
+  });
+
+  suite('compute annotations', function() {
+    test('compute annotations object correctly', function() {
+      let annotations = [{key: 'foo', bugs: ['bar']}];
+      assert.deepEqual({
+        foo: {
+          key: 'foo',
+          bugs: ['bar']
+        }
+      }, element._computeAnnotations(annotations, {}));
+    });
+
+    test('compute per item annotation correctly', function() {
+      let annotations = {
+        foo: {
+          key: 'foo',
+          snoozeTime: 0,
+        },
+        bar: {
+          key: 'bar',
+          bugs: ['bar'],
+        },
+        baz: {
+          key: 'baz',
+        }
+      };
+
+      assert.deepEqual(element.computeAnnotation(annotations, {key: 'foo'}), {
+          key: 'foo',
+          snoozed: false,
+        });
+
+      assert.deepEqual(element.computeAnnotation(annotations, {key: 'baz'}), {
+          key: 'baz',
+          snoozed: false,
+        });
+
+      annotations.foo.snoozeTime = 200;
+      assert.deepEqual(element.computeAnnotation(annotations, {key: 'foo'}), {
+          key: 'foo',
+          snoozed: true,
+          snoozeTime: 200,
+        });
+
+      assert.deepEqual(element.computeAnnotation(annotations, {key: 'bar'}), {
+          key: 'bar',
+          bugs:['bar'],
+          snoozed: false,
+        });
+    });
+  });
+
+  suite('bugs', function() {
+    test('filing a bug generates comment for new bug', function() {
+      let bugModel = [{
+        title: "WebKit Win7 step failure",
+        extension: {
+          builders: [
+            {
+              name: "WebKit Win7",
+              url: "https://build.chromium.org/p/chromium.webkit/builders/WebKit%20Win7"
+            }
+          ],
+          reasons: [
+            {
+              step: "webkit_tests",
+              test_names: [
+                "paint/selection/invalidation-rect-includes-newline-for-rtl.html",
+                "paint/selection/invalidation-rect-includes-newline-for-vertical-lr.html",
+                "paint/selection/invalidation-rect-includes-newline-for-vertical-rl.html",
+                "paint/selection/invalidation-rect-includes-newline.html",
+                "paint/selection/invalidation-rect-with-br-includes-newline.html",
+                "transforms/3d/point-mapping/3d-point-mapping-preserve-3d.html"
+              ],
+              url: "https://build.chromium.org/p/chromium.webkit/builders/WebKit%20Win7/builds/42524/steps/webkit_tests"
+            }
+          ]
+        }
+      }];
+
+      assert.equal(element._commentForBug(bugModel),
+        "WebKit Win7 step failure\n\n" +
+        "List of failed builders:\n\n" +
+        "Builder: WebKit Win7\n" +
+        "https://build.chromium.org/p/chromium.webkit/builders/WebKit%20Win7\n\n" +
+        "Reasons: \n" +
+        "https://build.chromium.org/p/chromium.webkit/builders/WebKit%20Win7/builds/42524/steps/webkit_tests\n" +
+        "Tests:\n" +
+        "* paint/selection/invalidation-rect-includes-newline-for-rtl.html\n" +
+        "* paint/selection/invalidation-rect-includes-newline-for-vertical-lr.html\n" +
+        "* paint/selection/invalidation-rect-includes-newline-for-vertical-rl.html\n" +
+        "* paint/selection/invalidation-rect-includes-newline.html\n" +
+        "* paint/selection/invalidation-rect-with-br-includes-newline.html\n" +
+        "* transforms/3d/point-mapping/3d-point-mapping-preserve-3d.html\n\n"
+      );
+    });
+
+    test('filing a bug generates comment for new bug - first failure is available', function() {
+      let bugModel = [{
+        title: "WebKit Win7 step failure",
+        extension: {
+          builders: [
+            {
+              name: "WebKit Win7",
+              url: "https://build.chromium.org/p/chromium.webkit/builders/WebKit%20Win7",
+              first_failure_url: "https://build.chromium.org/p/chromium.webkit/builders/WebKit%20Win7/b12345",
+              latest_failure_url: "https://build.chromium.org/p/chromium.webkit/builders/WebKit%20Win7/b6789"
+            }
+          ],
+          reasons: [
+            {
+              step: "webkit_tests",
+              test_names: [
+                "paint/selection/invalidation-rect-includes-newline-for-rtl.html",
+              ],
+              url: "https://build.chromium.org/p/chromium.webkit/builders/WebKit%20Win7/builds/42524/steps/webkit_tests"
+            }
+          ]
+        }
+      }];
+
+      assert.equal(element._commentForBug(bugModel),
+        "WebKit Win7 step failure\n\n" +
+        "List of failed builders:\n\n" +
+        "Builder: WebKit Win7\n" +
+        "https://build.chromium.org/p/chromium.webkit/builders/WebKit%20Win7\n" +
+        "First failing build:\n" +
+        "https://build.chromium.org/p/chromium.webkit/builders/WebKit%20Win7/b12345\n\n" +
+        "Reasons: \n" +
+        "https://build.chromium.org/p/chromium.webkit/builders/WebKit%20Win7/builds/42524/steps/webkit_tests\n" +
+        "Tests:\n" +
+        "* paint/selection/invalidation-rect-includes-newline-for-rtl.html\n\n"
+      );
+    });
+
+    test('filing a bug generates comment for new bug - first failure not available', function() {
+      let bugModel = [{
+        title: "WebKit Win7 step failure",
+        extension: {
+          builders: [
+            {
+              name: "WebKit Win7",
+              url: "https://build.chromium.org/p/chromium.webkit/builders/WebKit%20Win7",
+              first_failure_url: "",
+              latest_failure_url: "https://build.chromium.org/p/chromium.webkit/builders/WebKit%20Win7/b6789"
+            }
+          ],
+          reasons: [
+            {
+              step: "webkit_tests",
+              test_names: [
+                "paint/selection/invalidation-rect-includes-newline-for-rtl.html",
+              ],
+              url: "https://build.chromium.org/p/chromium.webkit/builders/WebKit%20Win7/builds/42524/steps/webkit_tests"
+            }
+          ]
+        }
+      }];
+
+      assert.equal(element._commentForBug(bugModel),
+        "WebKit Win7 step failure\n\n" +
+        "List of failed builders:\n\n" +
+        "Builder: WebKit Win7\n" +
+        "https://build.chromium.org/p/chromium.webkit/builders/WebKit%20Win7\n" +
+        "Latest failing build:\n" +
+        "https://build.chromium.org/p/chromium.webkit/builders/WebKit%20Win7/b6789\n\n" +
+        "Reasons: \n" +
+        "https://build.chromium.org/p/chromium.webkit/builders/WebKit%20Win7/builds/42524/steps/webkit_tests\n" +
+        "Tests:\n" +
+        "* paint/selection/invalidation-rect-includes-newline-for-rtl.html\n\n"
+      );
+    });
+
+    test('click file bugs with defaults', (done) => {
+      flush(() => {
+        element.tree = {
+          name: 'Foo',
+          default_monorail_project_name: 'foo'
+        };
+        element._fileBugModel = [{ title: 'bug summary' }];
+        element._fileBugCallBack = null;
+        element._fileBugClicked();
+        expect(element.$.fileBug.$.projectId.value).equal('foo');
+        expect(element.$.fileBug.$.priority.value).equal('Pri-2');
+        expect(element.$.fileBug.$.summary.value).equal('bug summary');
+
+        done();
+      });
+    });
+
+    test('save bug with invalid string', function () {
+      let sendStub = sinon.stub(element, 'sendAnnotation');
+      sendStub.onCall(0).returns({
+          then: (f) => {
+            f({key: 'foo'});
+          }
+      });
+
+      element.$.bug.value = 'bar';
+      element.$.autosnooze.checked = false;
+      element._fileBugModel = [{key: 'foo'}];
+
+      element._saveBug();
+
+      sinon.assert.notCalled(sendStub);
+    });
+
+    test('save bug with invalid string in path', function () {
+      let sendStub = sinon.stub(element, 'sendAnnotation');
+      sendStub.onCall(0).returns({
+        then: (f) => {
+          f({ key: 'foo' });
+        }
+      });
+
+      element.$.bug.value = 'bugs.chromium.org/aasasnans';
+      element.$.autosnooze.checked = false;
+      element._fileBugModel = [{ key: 'foo' }];
+
+      element._saveBug();
+
+      sinon.assert.notCalled(sendStub);
+    });
+
+    test('save bug with valid fuchsia full url', function () {
+      let sendStub = sinon.stub(element, 'sendAnnotation');
+      sendStub.onCall(0).returns({
+        then: (f) => {
+          f({ key: 'foo' });
+        }
+      });
+
+      element.$.bug.value = 'https://bugs.fuchsia.dev/p/fuchsia/issues/detail?id=37668&redir=1';
+      element.$.autosnooze.checked = false;
+      element._fileBugModel = [{ key: 'foo' }];
+
+      element._saveBug();
+
+      sinon.assert.calledOnce(sendStub);
+      sinon.assert.calledWith(
+        sendStub,
+        'foo',
+        'add',
+        {
+          bugs: [{
+            id: '37668',
+            projectId: 'fuchsia',
+          }]
+        }
+      );
+    });
+
+    test('save bug with valid chromium short url', function () {
+      let sendStub = sinon.stub(element, 'sendAnnotation');
+      sendStub.onCall(0).returns({
+        then: (f) => {
+          f({ key: 'foo' });
+        }
+      });
+
+      element.$.bug.value = 'http://crbug.com/123123';
+      element.$.autosnooze.checked = false;
+      element._fileBugModel = [{ key: 'foo' }];
+
+      element._saveBug();
+
+
+      sinon.assert.calledOnce(sendStub);
+      sinon.assert.calledWith(
+        sendStub,
+        'foo',
+        'add',
+        {
+          bugs: [{
+            id: '123123',
+            projectId: 'chromium',
+          }]
+        }
+      );
+    });
+
+    test('save bug with valid url with different project', function () {
+      let sendStub = sinon.stub(element, 'sendAnnotation');
+      sendStub.onCall(0).returns({
+        then: (f) => {
+          f({ key: 'foo' });
+        }
+      });
+
+      element.$.bug.value = 'http://crbug.com/monorail/123123';
+      element.$.autosnooze.checked = false;
+      element._fileBugModel = [{ key: 'foo' }];
+
+      element._saveBug();
+
+      sinon.assert.calledOnce(sendStub);
+      sinon.assert.calledWith(
+        sendStub,
+        'foo',
+        'add',
+        {
+          bugs: [{
+            id: '123123',
+            projectId: 'monorail',
+          }]
+        }
+      );
+    });
+
+    test('save bug with bugs.chromium.org', function () {
+      let sendStub = sinon.stub(element, 'sendAnnotation');
+      sendStub.onCall(0).returns({
+        then: (f) => {
+          f({ key: 'foo' });
+        }
+      });
+
+      element.$.bug.value = 'bugs.chromium.org/p/monorail/issues/detail?id=1024028';
+      element.$.autosnooze.checked = false;
+      element._fileBugModel = [{ key: 'foo' }];
+
+      element._saveBug();
+
+      sinon.assert.calledOnce(sendStub);
+      sinon.assert.calledWith(
+        sendStub,
+        'foo',
+        'add',
+        {
+          bugs: [{
+            id: '1024028',
+            projectId: 'monorail',
+          }]
+        }
+      );
+    });
+
+    test('save bug with shorthand', function () {
+      let sendStub = sinon.stub(element, 'sendAnnotation');
+      sendStub.onCall(0).returns({
+        then: (f) => {
+          f({ key: 'foo' });
+        }
+      });
+
+      element.$.bug.value = 'fuchsia:123123';
+      element.$.autosnooze.checked = false;
+      element._fileBugModel = [{ key: 'foo' }];
+
+      element._saveBug();
+
+      sinon.assert.calledOnce(sendStub);
+      sinon.assert.calledWith(
+        sendStub,
+        'foo',
+        'add',
+        {
+          bugs: [{
+            id: '123123',
+            projectId: 'fuchsia',
+          }]
+        }
+      );
+    });
+
+    test('save bug with invalid shorthand', function () {
+      let sendStub = sinon.stub(element, 'sendAnnotation');
+      sendStub.onCall(0).returns({
+        then: (f) => {
+          f({ key: 'foo' });
+        }
+      });
+
+      element.$.bug.value = 'fuchsia:aaa';
+      element.$.autosnooze.checked = false;
+      element._fileBugModel = [{ key: 'foo' }];
+
+      element._saveBug();
+
+      sinon.assert.notCalled(sendStub);
+    });
+
+    test('save bug with number', function () {
+      let sendStub = sinon.stub(element, 'sendAnnotation');
+      sendStub.onCall(0).returns({
+        then: (f) => {
+          f({ key: 'foo' });
+        }
+      });
+
+      element.$.bug.value = '123';
+      element.$.autosnooze.checked = false;
+      element._fileBugModel = [{ key: 'foo' }];
+
+      element._saveBug();
+
+      sinon.assert.calledOnce(sendStub);
+      sinon.assert.calledWith(
+        sendStub,
+        'foo',
+        'add',
+        {
+          bugs: [{
+            id: '123',
+            projectId: 'chromium',
+          }]
+        }
+      );
+    });
+
+    test('saving multiple bugs sends many annotations', function() {
+      let sendStub = sinon.stub(element, 'sendAnnotation');
+      element.$.bug.value = '123';
+      element.$.autosnooze.checked = false;
+      element._fileBugModel = [{key: 'foo'}, {key: 'bazzy'}];
+
+      element._saveBug();
+
+      sinon.assert.calledTwice(sendStub);
+    });
+
+    test('remove bug sends an annotation', function() {
+      let sendStub = sinon.stub(element, 'sendAnnotation');
+      sendStub.onCall(0).returns({
+          then: (f) => {
+            f({key: 'foo'});
+          }
+      });
+
+      element._removeBugModel = {
+        bug: '123',
+        project: 'chromium',
+        alert: {key: 'foo'}
+      };
+
+      element._removeBug();
+
+      sinon.assert.calledOnce(sendStub);
+      sinon.assert.calledWith(
+        sendStub,
+        'foo',
+        'remove',
+        {
+          bugs: [{
+            id: '123',
+            projectId: 'chromium',
+          }]
+        }
+      );
+    });
+
+    test('autosnooze bug', function() {
+      let sendStub = sinon.stub(element, 'sendAnnotation');
+      sendStub.onCall(0).returns({
+          then: (f) => {
+            f({key: 'foo'});
+          }
+      });
+
+      element.$.bug.value = 'fxb/123';
+      element.$.autosnooze.checked = true;
+      element._fileBugModel = [{key: 'foo'}];
+
+      element._saveBug();
+
+      sinon.assert.calledOnce(sendStub);
+
+      sinon.assert.calledWith(
+        sendStub,
+        'foo',
+        'add',
+        {
+          bugs: [{
+            id: '123',
+            projectId: 'fuchsia',
+          }],
+          snoozeTime: element._defaultSnoozeTime * 60 * 1000
+        }
+      );
+    });
+  });
+
+  suite('comments', function() {
+
+    test('no comments list when no bugs', function() {
+      // The template counts as an element
+      assert.equal(1, element.$.commentsList.childElementCount);
+    })
+
+    test('renders comment list when comments exist', function(done) {
+      element._annotationsResp =  [{
+        key: 'commentkey',
+        comments: [{
+            'text': 'foo',
+            'user': 'test@example.com',
+            'time': '2016-10-13T22:22:55.798814Z'
+          }, {
+            'text': 'bar',
+            'user': 'hello@world.com',
+            'time': '2016-10-17T22:22:55.798814Z'
+          }]
+      }];
+      element._commentsModel = {key: 'commentkey'};
+
+      flush(function () {
+        let comments = element.$.commentsList.querySelectorAll('li');
+        assert.lengthOf(comments, 2);
+
+        let users = element.$.commentsList.getElementsByClassName('user-info');
+        let text = element.$.commentsList.getElementsByClassName('comment-text');
+        let time = element.$.commentsList.getElementsByClassName('comment-time');
+
+        assert.equal('test', users[0].textContent.trim());
+        assert.equal('hello', users[1].textContent.trim());
+
+        assert.equal('foo', text[0].markdown.trim());
+        assert.equal('bar', text[1].markdown.trim());
+
+        assert.include(time[0].textContent.trim(), 'Thu, 13 Oct 2016 03:22 PM PDT');
+        assert.include(time[1].textContent.trim(), 'Mon, 17 Oct 2016 03:22 PM PDT');
+        done();
+      });
+    });
+
+    test('removing comment sends an annotations', function(done) {
+      let sendStub = sinon.stub(element, 'sendAnnotation');
+      element._commentsModel = {key: 'commentkey'};
+      element._commentIndexToRemove = 1;
+      element._removeComment({});
+
+      flush(function () {
+        sinon.assert.calledOnce(sendStub);
+        sinon.assert.calledWith(
+          sendStub,
+          'commentkey',
+          'remove',
+          {comments: [1]}
+        );
+        done();
+      });
+    });
+
+    test('add comment saves an annotation', function(done) {
+      let sendStub = sinon.stub(element, 'sendAnnotation');
+      sendStub.onCall(0).returns({
+          then: (f) => {
+            f({key: 'commentKey'});
+          }
+      });
+
+      element.$.commentText.value = 'fake comment';
+      element._commentsModel = {key: 'commentkey'};
+
+      element._addComment();
+
+      flush(function () {
+        sinon.assert.calledOnce(sendStub);
+        sinon.assert.calledWith(
+          sendStub,
+          'commentkey',
+          'add',
+          {comments: ['fake comment']}
+        );
+        done();
+      });
+    });
+
+    test('grouping alerts and do not merge bugs', function(done) {
+      let sendStub = sinon.stub(element, 'sendAnnotation');
+      sendStub.returns();
+      let generateUUIDStub = sinon.stub(element, '_generateUUID');
+      generateUUIDStub.onCall(0).returns('groupID');
+
+      element.$.groupName.value = 'My group';
+      element.$.mergeBugs.checked = false;
+
+      element._annotationsResp =  [
+        {
+          key: 'alert1',
+          bugs: [
+            {
+              id: "123",
+              projectId: "chromium",
+            },
+            {
+              id: "456",
+              projectId: "monorail",
+            }
+          ],
+          bug_data: {},
+        },
+        {
+          key: 'alert2',
+          bugs: [
+            {
+              id: "123",
+              projectId: "chromium",
+            },
+            {
+              id: "789",
+              projectId: "fuchsia",
+            }
+          ],
+          bug_data: {},
+        },
+      ];
+
+      element._groupModel = [
+        {key: 'alert1'},
+        {key: 'alert2'},
+      ];
+
+      element._group();
+
+      flush(function () {
+        sinon.assert.calledThrice(sendStub);
+        sinon.assert.calledWith(
+          sendStub.firstCall,
+          'alert1',
+          'add',
+          {group_id: 'groupID'}
+        );
+        sinon.assert.calledWith(
+          sendStub.secondCall,
+          'alert2',
+          'add',
+          {group_id: 'groupID'}
+        );
+        sinon.assert.calledWith(
+          sendStub.thirdCall,
+          'groupID',
+          'add',
+          {group_id: 'My group'}
+        );
+        done();
+      });
+    });
+
+    test('grouping alerts and should merge bugs', function(done) {
+      let sendStub = sinon.stub(element, 'sendAnnotation');
+      sendStub.returns();
+      let generateUUIDStub = sinon.stub(element, '_generateUUID');
+      generateUUIDStub.onCall(0).returns('groupID');
+
+      element.$.groupName.value = 'My group';
+      element.$.mergeBugs.checked = true;
+
+      element._annotationsResp =  [
+        {
+          key: 'alert1',
+          bugs: [
+            {
+              id: 123,
+              projectId: "chromium",
+            },
+            {
+              id: 456,
+              projectId: "monorail",
+            }
+          ],
+          bug_data: {},
+        },
+        {
+          key: 'alert2',
+          bugs: [
+            {
+              id: 789,
+              projectId: "fuchsia",
+            }
+          ],
+          bug_data: {},
+        },
+      ];
+
+      element._groupModel = [
+        {key: 'alert1'},
+        {key: 'alert2'},
+      ];
+
+      element._group();
+
+      flush(function () {
+        sinon.assert.calledThrice(sendStub);
+        sinon.assert.calledWith(
+          sendStub.firstCall,
+          'alert1',
+          'add',
+          {group_id: 'groupID'}
+        );
+        sinon.assert.calledWith(
+          sendStub.secondCall,
+          'alert2',
+          'add',
+          {group_id: 'groupID'}
+        );
+        sinon.assert.calledWith(
+          sendStub.thirdCall,
+          'groupID',
+          'add',
+          {
+            group_id: 'My group',
+            bugs: [
+              {id: "123", projectId: "chromium"},
+              {id: "456", projectId: "monorail"},
+              {id: "789", projectId: "fuchsia"},
+            ]
+          }
+        );
+        done();
+      });
+    });
+
+  });
+})();
+</script>

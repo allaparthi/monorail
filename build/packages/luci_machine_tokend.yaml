@@ -1,0 +1,19 @@
+package: infra/tools/luci/machine_tokend/${platform}
+description: luci_machine_tokend can generate machine access tokens
+platforms:
+  - linux-386
+  - linux-amd64
+  - linux-arm64
+  - linux-armv6l
+  - linux-mipsle
+  - linux-mips64
+  - linux-mips64le
+  - mac-amd64
+  - windows-386
+  - windows-amd64
+go_packages:
+  - go.chromium.org/luci/tokenserver/cmd/luci_machine_tokend
+root: ../../go/bin
+data:
+  - file: luci_machine_tokend${exe_suffix}
+  - version_file: .versions/luci_machine_tokend${exe_suffix}.cipd_version

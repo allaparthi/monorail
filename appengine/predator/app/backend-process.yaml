@@ -1,0 +1,45 @@
+application: predator-for-me-staging
+module: backend-process
+version: 1
+runtime: python27
+api_version: 1
+threadsafe: true
+instance_class: B4
+basic_scaling:
+  max_instances: 20
+  idle_timeout: 5m
+
+handlers:
+- url: /process/.*
+  script: backend.main.backend_app
+  secure: always
+
+# Pipeline handler.
+- url: /_ah/pipeline(/.*)?
+  script: backend.main.pipeline_backend_application
+  secure: always
+
+# All other handlers.
+- url: /.*
+  script: backend.main.backend_app
+  secure: always
+
+skip_files:
+- ^(.*/)?#.*#$
+- ^(.*/)?.*~$
+- ^(.*/)?.*\.py[co]$
+- ^(.*/)?.*_test\.py$
+- ^(.*/)?tests\.py$
+- ^(.*/)?\..*$
+- ^(.*/)?.*\.md$
+- __init__.py
+- frontend/.*
+- scripts/.*
+
+libraries:
+- name: webapp2
+  version: latest
+- name: jinja2
+  version: latest
+- name: numpy
+  version: 1.6.1

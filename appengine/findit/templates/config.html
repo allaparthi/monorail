@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<head>
+  <meta charset="utf-8">
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+  <link rel="stylesheet" href="/common.css"></link>
+  <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
+  <title>Findit Configuration</title>
+  <script>
+    $(function() {
+      // Format the json data in textarea elements.
+      $('textarea[format=json]').each(function() {
+        var textarea = $(this);
+        try {
+          textarea.val(JSON.stringify(JSON.parse(textarea.val()), null, '  '));
+        } catch (err) {
+          alert('Bad data format -- not json');
+          return false;
+        }
+      });
+
+      // Validate inputs.
+      $('#config-form').on('submit', function(e) {
+        var valid = true;
+        $('textarea[format=json]').each(function() {
+          var textarea = $(this);
+          try {
+            JSON.parse(textarea.val());
+          } catch (err) {
+            textarea.focus();
+            alert('Focused textarea is not in json format');
+            valid = false;
+            return false;
+          }
+        });
+        if (!valid)
+          e.preventDefault();
+      });
+    });
+  </script>
+</head>
+<body>
+  <div>
+    Configuration version: {{ version }}<br>
+    Updated time: {{ updated_ts }}<br>
+    Updated by: {{ updated_by }}<br>
+    Updated reason: {{message}}<br>
+  </div>
+  <br>
+  <div>
+    Browse version:
+    {% if version > 1 %}
+      <a href="/waterfall/config?version={{ version - 1 }}">Previous</a>
+    {% endif %}
+    {% if version != latest_version %}
+      <a href="/waterfall/config?version={{ version + 1 }}">Next</a>
+      <a href="/waterfall/config">Latest</a>
+      <div style="color:red;font-weight:bold">Note: not latest version!</div>
+    {% endif %}
+  </div>
+  <br>
+  <form id="config-form" action="/waterfall/config" method="post">
+    <input type="hidden" name="xsrf_token" value="{{xsrf_token}}"/>
+    <div>
+      Steps for Masters Rules:<br>
+      <textarea id="steps-for-masters-rules" name="steps_for_masters_rules" rows="20" cols="80" format="json" required>{{masters | tojson }}</textarea>
+    </div>
+    <br>
+    <div>
+      DEPRECATED--Waterfall Builders to Try-server trybots:<br>
+      <textarea id="builders-to-trybots" name="builders_to_trybots" rows="20" cols="80" format="json" required>{{ builders | tojson }}</textarea>
+    </div>
+    <br>
+    <div>
+      Try Job Settings:<br>
+      <textarea id="try-job-settings" name="try_job_settings" rows="10" cols="80" format="json" required>{{ try_job_settings | tojson }}</textarea>
+    </div>
+    <br>
+    <div>
+      Swarming Task Settings:<br>
+      <textarea id="swarming-settings" name="swarming_settings" rows="10" cols="80" format="json" required>{{ swarming_settings | tojson }}</textarea>
+    </div>
+    <br>
+    <div>
+      Download Build Data Settings:<br>
+      <textarea id="download-build-data-settings" name="download_build_data_settings" rows="10" cols="80" format="json" required>{{ download_build_data_settings | tojson }}</textarea>
+    </div>
+    <br>
+    <div>
+      Action Settings for identified culprits or suspects:<br>
+      <textarea id="action-settings" name="action_settings" rows="10" cols="80" format="json" required>{{ action_settings | tojson }}</textarea>
+    </div>
+    <br>
+    <div>
+      Check Test Flakiness Settings:<br>
+      <textarea id="check-flake-settings" name="check_flake_settings" rows="10" cols="80" format="json" required>{{ check_flake_settings | tojson }}</textarea>
+    </div>
+    <br>
+    <div>
+      Flake Detection Settings:<br>
+      <textarea id="flake-detection-settings" name="flake_detection_settings" rows="10" cols="80" format="json" required>{{ flake_detection_settings | tojson }}</textarea>
+    </div>
+    <br>
+    <div>
+      Code Coverage Settings:<br>
+      <textarea id="code-coverage-settings" name="code_coverage_settings" rows="10" cols="80" format="json" required>{{ code_coverage_settings | tojson }}</textarea>
+    </div>
+    <br>
+    <div>
+      CodeReview Settings:<br>
+      <textarea id="code-review-settings" name="code_review_settings" rows="10" cols="80" format="json" required>{{ code_review_settings | tojson }}</textarea>
+    </div>
+    <br>
+    <div>
+      Reason to update config:<br>
+      <textarea id="message" name="message" rows="5", cols="80" required></textarea>
+    </div>
+    <br>
+    <button type="submit" id="save-button">Save</button>
+  </form>
+</body>

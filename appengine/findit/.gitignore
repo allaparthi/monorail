@@ -1,0 +1,14 @@
+# no file in .tmp/
+.tmp
+
+# no file in util_scripts/tmp
+util_scripts/tmp
+
+# Polymer
+# Ignore node_modules to make uploaded server code is smaller.
+node_modules
+
+# Project files
+.idea/*
+.vscode/*
+*.iml

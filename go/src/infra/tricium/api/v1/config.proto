@@ -1,0 +1,174 @@
+// Copyright 2016 The Chromium Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+syntax = "proto3";
+
+package tricium;
+
+import "infra/tricium/api/v1/data.proto";
+import "infra/tricium/api/v1/function.proto";
+import "infra/tricium/api/v1/platform.proto";
+
+// Tricium service configuration.
+//
+// Listing supported platforms and analyzers shared between projects connected
+// to Tricium.
+message ServiceConfig {
+  // Supported platforms.
+  repeated Platform.Details platforms = 1;
+
+  // Supported data types.
+  repeated Data.TypeDetails data_details = 2;
+
+  // List of shared functions.
+  repeated Function functions = 3;
+
+  // Base recipe command used for workers implemented as recipes.
+  //
+  // Specific recipe details for the worker will be added as flags at the
+  // end of the argument list.
+  Cmd recipe_cmd = 5;
+
+  // Base recipe packages used for workers implemented as recipes.
+  //
+  // These packages will be adjusted for the platform in question, by appending
+  // platform name details to the end of the package name.
+  repeated CipdPackage recipe_packages = 6;
+
+  // Swarming server to use for this service instance.
+  //
+  // This should be a full URL with no trailing slash.
+  string swarming_server = 7;
+
+  // Isolate server to use for this service instance.
+  //
+  // This should be a full URL with no trailing slash.
+  string isolate_server = 8;
+
+  // Buildbucket server to use for this service instance.
+  //
+  // This should be a hostname, no schema or trailing slash.
+  string buildbucket_server_host = 9;
+}
+
+// Tricium project configuration.
+//
+// Specifies details needed to connect a project to Tricium.
+// Adds project-specific functions and selects shared function
+// implementations.
+message ProjectConfig {
+  // Access control rules for the project.
+  repeated Acl acls = 2;
+
+  // Project-specific function details.
+  //
+  // This includes project-specific analyzer implementations and full
+  // project-specific analyzer specifications.
+  repeated Function functions = 3;
+
+  // Selection of function implementations to run for this project.
+  repeated Selection selections = 4;
+
+  // Repositories, including Git and Gerrit details.
+  repeated RepoDetails repos = 5;
+
+  // General service account for this project.
+  // Used for any service interaction, with the exception of swarming.
+  string service_account = 6;
+
+  // Project-specific swarming service account.
+  string swarming_service_account = 7;
+}
+
+// Repository details for one repository.
+message RepoDetails {
+  // The repository type.
+  oneof source {
+    GerritProject gerrit_project = 4;
+    GitRepo git_repo = 5;
+  }
+
+  // Whether to disable reporting results back (default: enabled).
+  bool disable_reporting = 6;
+
+  // Whitelisted groups.
+  //
+  // The owner of a change will be checked for membership of a whitelisted
+  // group. Absence of this field means all groups are whitelisted.
+  //
+  // Group names must be known to the Chrome infra auth service,
+  // https://chrome-infra-auth.appspot.com. Contact a Chromium trooper
+  // if you need to add or modify a group: g.co/bugatrooper.
+  repeated string whitelisted_group = 7;
+}
+
+// Specifies a Gerrit project and its corresponding git repo.
+message GerritProject {
+  // The Gerrit host to connect to.
+  //
+  // Value must not include the schema part; it will be assumed to be "https".
+  string host = 1;
+
+  // Gerrit project name.
+  string project = 2;
+
+  // Full URL for the corresponding git repo.
+  string git_url = 3;
+}
+
+message GitRepo {
+  // Full repository url, including schema.
+  string url = 3;
+}
+
+// Access control rules.
+message Acl {
+  // Roles relevant to Tricium.
+  enum Role {
+   // Can read progress/results.
+   READER = 0;
+   // Can request analysis.
+   REQUESTER = 1;
+  }
+
+  // Role of a group or identity.
+  Role role = 1;
+
+  // Name of group, as defined in the auth service. Specify either group or
+  // identity, not both.
+  string group = 2;
+
+  // Identity, as defined by the auth service. Can be either an email address
+  // or an identity string, for instance, "anonymous:anonymous" for anonymous
+  // users. Specify either group or identity, not both.
+  string identity = 3;
+}
+
+// Selection of function implementations to run for a project.
+message Selection {
+  // Name of function to run.
+  string function = 1;
+
+  // Name of platform to retrieve results from.
+  Platform.Name platform = 2;
+
+  // Function configuration to use on this platform.
+  repeated Config configs = 3;
+}
+
+// Function configuration used when selecting a function implementation.
+message Config {
+  // Name of the configuration option.
+  string name = 1;
+
+  // Value of the configuration.
+  oneof value_type {
+    // A base value, directly passed to a command or recipe as-is.
+    string value = 2;
+
+    // A JSON value, directly passed as a string to a command or unmarshaled
+    // for a recipe.
+    string value_j = 3;
+  }
+}

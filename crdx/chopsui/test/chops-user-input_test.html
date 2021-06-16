@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<title>userInput</title>
+<meta charset="utf-8">
+<link rel="import" href="../chops-user-input.html">
+<script src="../../webcomponentsjs/webcomponents-lite.js"></script>
+<script src="../../web-component-tester/browser.js"></script>
+<script src="../../iron-test-helpers/mock-interactions.js"></script>
+
+<test-fixture id="chops-user-input-test">
+  <template>
+    <chops-user-input></chops-user-input>
+  </template>
+</test-fixture>
+
+<script>
+  'use strict';
+
+  suite('chops-user-input', function() {
+    let element;
+    setup(function() {
+      element = fixture('chops-user-input-test');
+      element.suggestions = ['user1', 'user2', 'user3', 'user4'];
+    });
+
+    test('methods', function(done) {
+      flush(function() {
+        // Test _toggleDropdown after focus.
+        MockInteractions.focus(element);
+        element._toggleDropdown();
+        let dropdownDiv = element.$.dropdown.$.dropdown;
+        assert.isFalse(dropdownDiv.classList.contains('hidden'));
+
+        // Test _toggleDropdown after blur.
+        MockInteractions.blur(element);
+        element._toggleDropdown();
+        dropdownDiv = element.$.dropdown.$.dropdown;
+        assert.isTrue(dropdownDiv.classList.contains('hidden'));
+
+        // Test _saveUser
+        element._saveUser({detail: {selectedUser: 'user1'}});
+        assert.deepEqual(element.selectedUsers, ['user1']);
+
+        element._saveUser({detail: {selectedUser: 'user2'}});
+        assert.deepEqual(element.selectedUsers, ['user1', 'user2']);
+
+        // Test _removeUser
+        element._removeUser({detail: {removedUser: 'user2'}});
+        assert.deepEqual(element.selectedUsers, ['user1']);
+
+        // Test _updateInputDisabled
+        element.multiple = false;
+        element._inputDisabled = false;
+        element._updateInputDisabled(1);
+        assert.isTrue(element._inputDisabled);
+
+        element.multiple = false;
+        element._inputDisabled = false;
+        element._updateInputDisabled(0);
+        assert.isFalse(element._inputDisabled)
+
+        element.multiple = true;
+        element._inputDisabled = false;
+        element._updateInputDisabled(1);
+        assert.isFalse(element._inputDisabled);
+
+        done();
+      });
+    });
+
+    test('_toggleDropdown-called', function(done) {
+      let toggleStub = sinon.stub(element, '_toggleDropdown');
+
+      flush(function() {
+        MockInteractions.focus(element);
+        sinon.assert.calledOnce(toggleStub);
+
+        MockInteractions.blur(element);
+        sinon.assert.calledTwice(toggleStub);
+
+        done();
+      });
+    });
+
+    test('_updateInputDisabled-called', function(done) {
+      let updateStub = sinon.stub(element, '_updateInputDisabled');
+
+      flush(function() {
+        element.selectedUsers = [{userId: 'newlySelectedUser'}]
+        sinon.assert.calledOnce(updateStub);
+
+        done();
+      });
+    });
+
+    test('_saveUser-called', function(done) {
+      let saveStub = sinon.stub(element, '_saveUser');
+
+      flush(function() {
+        element.$.dropdown.dispatchEvent(
+            new CustomEvent('user-selected', {detail: {selectedUser: 'user2'}}));
+        sinon.assert.calledOnce(saveStub);
+
+        done();
+      });
+    });
+
+    test('_removeUser-called', function(done) {
+      let removeStub = sinon.stub(element, '_removeUser');
+      element.selectedUsers = [{userId: 'user1'}]
+
+      flush(function() {
+        element.shadowRoot.querySelector('chops-user-id').dispatchEvent(
+          new CustomEvent('remove-user', {detail: {removedUser: {userId:'user1'}}}));
+        sinon.assert.calledOnce(removeStub);
+
+        done();
+      });
+    });
+
+  });
+</script>

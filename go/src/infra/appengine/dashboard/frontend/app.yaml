@@ -1,0 +1,26 @@
+application: chopsdash
+runtime: go111
+
+handlers:
+- url: /static
+  static_dir: static
+
+- url: /elements
+  static_dir: elements
+  secure: always
+
+- url: /deployed_node_modules
+  static_dir: deployed_node_modules
+  secure: always
+  mime_type: application/javascript
+
+- url: /static/dist
+  static_dir: static/dist
+  mime_type: application/javascript
+  secure: always
+  http_headers:
+    Access-Control-Allow-Origin: '*'
+
+- url: /.*
+  script: auto
+  secure: always

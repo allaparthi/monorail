@@ -1,0 +1,148 @@
+<link rel="import" href="../../bower_components/polymer/polymer-element.html">
+
+<link rel="import" href="../../bower_components/iron-ajax/iron-ajax.html">
+<link rel="import" href="../../bower_components/iron-collapse/iron-collapse.html">
+<link rel="import" href="../../bower_components/iron-icon/iron-icon.html">
+<link rel="import" href="../../bower_components/paper-radio-button/paper-radio-button.html">
+<link rel="import" href="../../bower_components/paper-radio-group/paper-radio-group.html">
+
+<link rel="import" href="../../elements/som-input-styles.html">
+<link rel="import" href="../../elements/som-settings/som-settings.html">
+
+<script src="../../bower_components/moment/min/moment.min.js"></script>
+
+<dom-module id="som-drawer">
+  <template>
+    <style include="som-input-styles">
+      h2 {
+        box-sizing: border-box;
+        font-size: 14px;
+        font-weight: bold;
+        padding: 0.5em 4px 0.25em;
+        width: 95%;
+        margin: 0.5em auto;
+        border-bottom: 1px solid #bbb;
+        cursor: pointer;
+      }
+      h2 iron-icon {
+        padding-right: 4px;
+        width: 14px;
+        height: 14px;
+      }
+      label {
+        padding-left: 14px;
+      }
+      .rotation-name {
+        font-weight: bold;
+        margin-top: 14px;
+        padding-left: 14px;
+      }
+      .rotation-members {
+        padding-left: 28px;
+      }
+      ul {
+        margin-top: 0.5em;
+        padding-left: 48px;
+      }
+      .menu-item {
+        padding: 0.75em;
+        padding-left: 32px;
+        font-size: 14px;
+        -webkit-transition: background .3s ease;
+        transition: background .3s ease;
+      }
+      .menu-item:hover {
+        cursor: pointer;
+        background-color: #eee;
+      }
+
+      .menu-item-link {
+        text-decoration: none;
+        color: inherit;
+      }
+
+      .settings-item {
+        padding-left: 32px;
+        padding-bottom: 1em;
+      }
+      .toggle-icon {
+        float: right;
+      }
+    </style>
+    <iron-ajax
+        id="fetchTrooper"
+        auto
+        url="https://rota-ng.appspot.com/legacy/current_trooper.txt"
+        handle-as="text"
+        last-response="{{_trooperString}}"
+    ></iron-ajax>
+    <som-settings
+        collapse-by-default="{{collapseByDefault}}"
+        default-tree="{{_defaultTree}}"
+    ></som-settings>
+
+    <h2 on-tap="toggleMenu" data-toggle-target="treeMenu">
+      <iron-icon icon="folder"></iron-icon>Trees
+      <iron-icon icon="remove" class="toggle-icon"></iron-icon>
+    </h2>
+    <iron-collapse id="treeMenu" opened no-animation>
+      <template is="dom-repeat" items="[[_treesList]]" as="tree">
+        <div class="menu-item" value="[[tree.name]]" on-tap="_onSelected">
+          [[tree.display_name]]
+        </div>
+      </template>
+    </iron-collapse>
+
+    <h2 on-tap="toggleMenu" data-toggle-target="helpMenu">
+      <iron-icon icon="help"></iron-icon>Useful Links
+      <iron-icon icon="remove" class="toggle-icon"></iron-icon>
+    </h2>
+    <iron-collapse id="helpMenu" opened no-animation>
+      <template is="dom-repeat" items="[[_staticPageList]]" as="page">
+        <div class="menu-item" value="[[page.name]]" on-tap="_onSelected">
+          [[page.displayText]]
+        </div>
+      </template>
+      <a class="menu-item-link" href="https://goto.google.com/flake-portal" target="_blank">
+        <div class="menu-item">Flake Portal</div>
+      </a>
+      <a class="menu-item-link" href="https://goto.google.com/chromecals" target="_blank">
+        <div class="menu-item">Rotation Calendars</div>
+      </a>
+    </iron-collapse>
+
+    <h2 on-tap="toggleMenu" data-toggle-target="onCallMenu">
+      <iron-icon icon="perm-phone-msg"></iron-icon>Current On Calls
+      <iron-icon icon="remove" class="toggle-icon"></iron-icon>
+    </h2>
+
+    <iron-collapse id="onCallMenu" opened no-animation>
+      <label>Trooper (<a href="https://goto.google.com/bugatrooper" target="_blank">go/bugatrooper</a>)</label>
+      <ul id="currentTroopers">
+        <template is="dom-repeat" items="[[_troopers]]" as="trooper">
+          <li>[[trooper]]</li>
+        </template>
+      </ul>
+
+      <template is="dom-if" if="[[_currentOncalls]]">
+        <template is="dom-repeat" items="[[_currentOncalls]]" as="rotation">
+          <div class="rotation-name">[[rotation.name]]</div>
+          <div class="rotation-members">[[rotation.people]]</div>
+        </template>
+      </template>
+    </iron-collapse>
+
+    <h2 on-tap="toggleMenu" data-toggle-target="settingsMenu">
+      <iron-icon icon="settings"></iron-icon>Settings
+      <iron-icon icon="remove" class="toggle-icon"></iron-icon>
+    </h2>
+    <iron-collapse id="settingsMenu" opened no-animation>
+      <label class="checkbox settings-item">
+        <input type="checkbox" checked="{{collapseByDefault::change}}" />
+        Collapse alerts by default
+      </label>
+    </iron-collapse>
+
+  </template>
+  <script src="som-drawer.js"></script>
+</dom-module>

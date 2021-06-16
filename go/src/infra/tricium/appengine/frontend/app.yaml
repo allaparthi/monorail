@@ -1,0 +1,45 @@
+service: default
+runtime: go111
+
+handlers:
+ - url: /rpcexplorer/?
+   static_files: rpcexplorer/index.html
+   upload: rpcexplorer/index.html
+   secure: always
+
+ # The entire subpath is globbed because RPC Explorer uses native URL redirecting
+ # for sub-pages, and we want all of them to map to the same HTML file.
+ - url: /rpcexplorer/services/.*
+   static_files: rpcexplorer/index.html
+   upload: rpcexplorer/index.html
+   secure: always
+
+ - url: /rpcexplorer
+   static_dir: rpcexplorer
+   secure: always
+
+ - url: /internal/.*
+   script: auto
+   secure: always
+   login: admin
+
+ - url: /_ah/push-handlers/.*
+   script: auto
+   secure: always
+   login: admin
+
+ - url: /src
+   static_dir: ui/build/default/src/
+   secure: always
+
+ - url: /static
+   static_dir: static
+   secure: always
+
+ - url: /node_modules
+   static_dir: ui/build/default/node_modules/
+   secure: always
+
+ - url: /.*
+   script: auto
+   secure: always

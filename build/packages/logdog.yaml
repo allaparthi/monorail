@@ -1,0 +1,12 @@
+package: infra/tools/luci/logdog/logdog/${platform}
+description: logdog is a LogDog CLI client.
+platforms:
+  - linux-amd64
+  - mac-amd64
+  - windows-amd64
+go_packages:
+  - infra/tools/logdog
+root: ../../go/bin
+data:
+  - file: logdog${exe_suffix}
+  - version_file: .versions/logdog${exe_suffix}.cipd_version

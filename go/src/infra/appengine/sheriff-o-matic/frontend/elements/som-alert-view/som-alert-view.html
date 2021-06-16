@@ -1,0 +1,189 @@
+<link rel="import" href="../../bower_components/polymer/polymer-element.html">
+
+<link rel="import" href="../../bower_components/iron-icons/iron-icons.html">
+<link rel="import" href="../../bower_components/iron-pages/iron-pages.html">
+<link rel="import" href="../../bower_components/paper-input/paper-input.html">
+
+<link rel="import" href="../../elements/som-alert-type-behavior.html">
+<link rel="import" href="../../elements/som-annotation-manager-behavior.html">
+<link rel="import" href="../../elements/som-bug-manager-behavior.html">
+<link rel="import" href="../../elements/som-post-behavior.html">
+<link rel="import" href="../../elements/som-time-behavior.html">
+
+<link rel="import" href="../../elements/som-header-styles.html">
+<link rel="import" href="../../elements/som-input-styles.html">
+<link rel="import" href="../../elements/som-utility-styles.html">
+
+<link rel="import" href="../../elements/som-alert-category/som-alert-category.html">
+<link rel="import" href="../../elements/som-annotations/som-annotations.html">
+<link rel="import" href="../../elements/som-bug-queue/som-bug-queue.html">
+<link rel="import" href="../../elements/som-examine/som-examine.html">
+
+
+<link rel="import" href="../../elements/tree-status/som-tree-status/som-tree-status.html">
+
+<dom-module id="som-alert-view">
+  <template>
+    <style include="som-header-styles som-input-styles som-utility-styles">
+      #alertListPage {
+        display: flex;
+        flex-direction: column;
+      }
+      #bulkAlertActions {
+        position: fixed;
+        display: flex;
+        flex-direction: horizontal;
+        align-items: center;
+        width: 100%;
+        background: #fff;
+        padding: 0.5em 8px;;
+        z-index: 1;
+        border-bottom: 1px solid #ccc;
+        box-shadow: 0px 3px 5px #bbb;
+      }
+      #bulkAlertActions button:first-of-type {
+        margin-left: 32px;
+      }
+      #fetchAlertsError {
+        color: #f00;
+        margin: 1em;
+      }
+      #filterInput {
+        margin-top: -32px;
+        width: 60%;
+      }
+      #notifications {
+        border-bottom: 1px solid #ddd;
+        padding-bottom: 0.5em;
+        margin-bottom: 1em;
+      }
+      .error {
+        margin-top: 0;
+      }
+      .notification {
+        box-sizing: border-box;
+        width: 100%;
+        padding: 0.5em 8px;
+        margin: 0.5em auto;
+        border: 1px solid #ccc;
+        background: #f8f8f8;
+      }
+      .page-section,
+      .alert-category {
+        flex-grow: 0;
+        flex-shrink: 0;
+        margin-bottom: 0.5em;
+      }
+      .search-bar {
+        display: flex;
+        flex-direction: row;
+        align-itmes: center;
+        font-size: smaller;
+        padding-top: 8px;
+      }
+      iron-pages {
+        padding: 1em 16px;
+      }
+    </style>
+    <som-annotations id="annotations"
+        annotations="{{annotations}}"
+        tree="[[tree]]"
+        collapse-by-default="[[collapseByDefault]]"
+        local-state="{{localState}}"
+        user="[[user]]"
+        on-bulk-ungrouped="_handleBulkUngrouped"></som-annotations>
+    <template is="dom-if" if="[[_checkedAlerts.length]]">
+      <div id="bulkAlertActions">
+        You have selected [[_checkedAlerts.length]] alerts.
+        (<small class="link" on-tap="_uncheckAll">Unselect all?</small>)
+        <button on-tap="_handleLinkBugBulk">Link Bug to All</button>
+        <button on-tap="_handleSnoozeBulk">Snooze All</button>
+        <button on-tap="_handleUngroupBulk" hidden$="[[!_hasUngroupAll(_checkedAlerts)]]">
+          Ungroup All</button>
+        <button on-tap="_handleGroupBulk" hidden$="[[!_hasGroupAll(_checkedAlerts)]]">
+          Group All</button>
+        <button on-tap="_handleResolveBulk" hidden>Resolve All</button>
+      </div>
+    </template>
+    <iron-pages attr-for-selected="id" selected="[[_currentAlertView]]">
+      <div id="alertListPage">
+        <div id="notifications" class="page-section">
+          <som-tree-status tree-name="[[tree.name]]" id="treeStatus"></som-tree-status>
+          <div class="notification">
+            Start at the top and try to clear all the alerts. For additional guidance, see:
+            <span hidden$="[[!tree.help_link]]">
+              <a href$="[[tree.help_link]]" target="_blank">[[tree.display_name]] Help</a>
+            </span>
+            <span hidden$="[[tree.help_link]]">
+              <a href="/help-som">The Help Page</a>
+            </span>
+          </div>
+        </div>
+        <div id="alertsList" class="page-section">
+          <div id="fetchAlertsError" hidden$=[[!_fetchAlertsError]]>[[_fetchAlertsError]]</div>
+          <template is="dom-if" if="[[!_hideJulie]]">
+            <div id="noAlerts">
+              <h2>Nice! There's no alerts right now. :)</h2>
+              <img src="/images/jparent-jump.gif" alt="Julie Jumping" title="Julie Jumping" />
+            </div>
+          </template>
+          <div class="search-bar">
+            <iron-icon class="filter-icon" icon="search"></iron-icon>
+            <paper-input id="filterInput" value="{{_filterPattern}}" placeholder="Filter alerts by regex"></paper-input>
+          </div>
+          <template is="dom-if" if="[[_filterPattern]]">
+            Showing [[_alerts.length]] out of [[_allAlerts.length]] alerts that match filter pattern.
+          </template>
+          <template is="dom-repeat" items="[[_categories]]" as="cat">
+            <som-alert-category
+                id="alertCategory[[index]]"
+                class="alert-category"
+                category-title="[[_getCategoryTitle(cat,trees)]]"
+                alerts="[[_alertItemsWithCategory(_alerts,cat)]]"
+                annotations="[[annotations]]"
+                tooltip="[[getSeverityTooltip(cat)]]"
+                tree-name="[[tree.name]]"
+                collapse-by-default="[[collapseByDefault]]"
+                is-infra-failures-section="[[_isInfraFailuresSection(cat)]]"
+                is-resolved-section="[[_isResolvedSection(cat)]]"
+                on-annotation-change="_handleAnnotation"
+                on-comment="_handleComment"
+                on-link-bug="_handleLinkBug"
+                on-file-bug="_handleFileBug"
+                on-remove-bug="_handleRemoveBug"
+                on-snooze="_handleSnooze"
+                on-ungroup="_handleUngroup"
+                on-resolve="_handleResolve"
+                on-unresolve="_handleUnresolve"
+                on-checked="_handleChecked"
+            ></som-alert-category>
+          </template>
+        </div>
+        <som-bug-queue
+          id="bugQueue"
+          class="page-section"
+          bugs="{{_bugs}}"
+          bug-queue-label="[[tree.bug_queue_label]]"
+          tree-display-name="[[tree.display_name]]"></som-bug-queue>
+      </div>
+      <div id="examineAlert">
+        <som-alert-item
+            alert="[[_examinedAlert]]"
+            tree-name="[[tree.name]]"
+            annotation="[[computeAnnotation(annotations, _examinedAlert)]]"
+            collapse-by-default="[[collapseByDefault]]"
+            on-annotation-change="_handleAnnotation"
+            on-comment="_handleComment"
+            on-link-bug="_handleLinkBug"
+            on-file-bug="_handleFileBug"
+            on-remove-bug="_handleRemoveBug"
+            on-snooze="_handleSnooze"
+            on-ungroup="_handleUngroup"
+            examining
+        ></som-alert-item>
+        <som-examine alert="[[_examinedAlert]]"></som-examine>
+      </div>
+    </iron-pages>
+  </template>
+  <script src="som-alert-view.js"></script>
+</dom-module>

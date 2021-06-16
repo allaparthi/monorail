@@ -1,0 +1,304 @@
+<link rel="import" href="../../bower_components/polymer/polymer-element.html">
+
+<link rel="import" href="../../bower_components/iron-a11y-keys/iron-a11y-keys.html">
+<link rel="import" href="../../bower_components/iron-icons/iron-icons.html">
+<link rel="import" href="../../bower_components/paper-dialog/paper-dialog.html">
+<link rel="import" href="../../bower_components/paper-dialog-scrollable/paper-dialog-scrollable.html">
+<link rel="import" href="../../bower_components/paper-input/paper-input.html">
+<link rel="import" href="../../bower_components/paper-input/paper-textarea.html">
+
+<link rel="import" href="../../elements/som-input-styles.html">
+<link rel="import" href="../../elements/som-utility-styles.html">
+
+<link rel="import" href="../../elements/som-alert-type-behavior.html">
+<link rel="import" href="../../elements/som-annotation-manager-behavior.html">
+<link rel="import" href="../../elements/som-bug-manager-behavior.html">
+<link rel="import" href="../../elements/som-post-behavior.html">
+
+<link rel="import" href="../../elements/som-marked-element/som-marked-element.html">
+
+<link rel="import" href="../../elements/som-annotations/som-file-bug.html">
+
+<script src="../../bower_components/moment/min/moment.min.js"></script>
+<script src="../../bower_components/moment-timezone/builds/moment-timezone-with-data.min.js"></script>
+
+<dom-module id="som-annotations">
+  <template>
+    <style include="som-input-styles som-utility-styles">
+      #bugDialog, #removeBugDialog, #snoozeDialog {
+        width: 300px;
+      }
+      #groupDialog {
+        width: 300px;
+        padding: 10px;
+      }
+      #commentsDialog, #ungroupDialog {
+        width: 80%;
+        min-width: 300px;
+        max-width: 600px;
+      }
+      #removeCommentConfirmationDialog {
+        width: 300px;
+        padding: 1em;
+      }
+      #commentsDialog iron-icon {
+        color: #666;
+        padding: 0;
+        margin-left: 4px;
+        height: 20px;
+        width: 20px;
+        -webkit-transition: all .3s ease;
+        transition: all .3s ease;
+        border-radius: 50%;
+        float: right;
+      }
+      #commentsDialog iron-icon:hover {
+        color: #222;
+        background-color: #aaa;
+      }
+      #commentsList li {
+        list-style-type: none;
+        box-sizing: border-box;
+        padding: 0.5em 16px;
+        display: block;
+        width: 100%;
+        margin-bottom: 0.5em;
+        background: #eee;
+        border-radius: 16px;
+        word-wrap: break-word;
+      }
+      #commentsList .comment-context {
+        font-size: 0.9em;
+        display: block;
+        width: 100%;
+        font-style: italic;
+      }
+      .autosnoozeText input {
+        width: 60px;
+        display: inline-block;
+      }
+      .buttons {
+        margin-top: 1em;
+      }
+      .buttons button {
+        font-size: 1.1em;
+      }
+      .error {
+        margin-top: 0;
+      }
+      .group-row,
+      .ungroup-row {
+        background: #fff;
+        border-bottom: 1px solid #ddd;
+        padding: 0.25em 4px;
+      }
+      .group-row:nth-child(even),
+      .ungroup-row:nth-child(even) {
+        background: #f2f2f2;
+      }
+      .header {
+        padding: 0.5em 8px 0.25em;
+        margin: 1em 4px;
+        background-color: #eee;
+      }
+      .linkText {
+        color: blue;
+        text-decoration: underline;
+        cursor: pointer;
+      }
+      .sub-alert {
+        display: block;
+        font-size: 0.8em;
+          color: #0c0;
+      }
+      .stage {
+        display: block;
+        font-size: 0.8em;
+          color: #c00;
+      }
+    </style>
+    <template is="dom-if" if="[[_haveAnnotationError(annotationError.*)]]">
+      <span class="error header">
+        [[annotationError.action]] failed: [[annotationError.message]]
+      </span>
+    </template>
+
+    <paper-dialog id="bugDialog" with-backdrop>
+      <iron-a11y-keys target="[[_fileBugInput]]" keys="enter" on-keys-pressed="_saveBug"></iron-a11y-keys>
+      <h2>Enter Bug URL or Number</h2>
+      <paper-input autofocus id="bug" label="chromium:123, crbug.com/123, fxb/123" auto-validate minlength="3"></paper-input>
+      <label class="checkbox autosnoozeCheckbox">
+        <input type="checkbox" id="autosnooze" checked />
+        <div class="autosnoozeText">
+          Autosnooze alert for
+          <input type="text" id="autosnoozeTime" value$="[[_defaultSnoozeTime]]" />
+          min
+        </div>
+      </label>
+      <div class="linkText" on-click="_fileBugClicked">
+          File bug
+     </div>
+      <div class="error">[[_bugErrorMessage]]</div>
+      <div class="buttons">
+        <button dialog-dismiss>
+          Close
+        </button>
+        <button on-tap="_saveBug" class="emphasized">
+          Save Bug
+        </button>
+      </div>
+    </paper-dialog>
+
+    <som-file-bug id="fileBug" creator="[[user]]" on-success="_linkNewBug"></som-file-bug>
+
+    <paper-dialog id="removeBugDialog" with-backdrop>
+      <h2>Unlinking bug from alert</h2>
+      <div>
+        <a target="_blank" href$="[[_removeBugModel.url]]">Bug [[_removeBugModel.bug]]</a>
+        <p>
+          [[_removeBugModel.summary]]
+        </p>
+        <p>
+          Linked to: <em>[[_removeBugModel.alert.title]]</em>
+        </p>
+      </div>
+      <div class="error">[[_removeBugErrorMessage]]</div>
+      <div class="buttons">
+        <button dialog-dismiss>
+          Cancel
+        </button>
+        <button on-tap="_removeBug" class="emphasized">
+          Yes, unlink this bug
+        </button>
+      </div>
+    </paper-dialog>
+
+    <paper-dialog id="snoozeDialog" with-backdrop>
+      <iron-a11y-keys target="[[_snoozeTimeInput]]" keys="enter" on-keys-pressed="_snooze"></iron-a11y-keys>
+      <h2>Snooze</h2>
+      <paper-input autofocus label="Amount of time (minutes):" id="snoozeTime" value="[[_defaultSnoozeTime]]"
+        auto-validate allowed-pattern="[0-9]"></paper-input>
+      <div class="error">[[_snoozeErrorMessage]]</div>
+      <div class="buttons">
+        <button dialog-dismiss>
+          Close
+        </button>
+        <button on-tap="_snooze" class="emphasized">
+          Snooze
+        </button>
+      </div>
+    </paper-dialog>
+
+    <paper-dialog id="commentsDialog" with-backdrop>
+      <iron-a11y-keys target="[[_commentTextInput]]" keys="enter" on-keys-pressed="_addComment"></iron-a11y-keys>
+      <h2>Comments</h2>
+      <paper-dialog-scrollable>
+        <ul id="commentsList" hidden$="[[_commentsHidden]]">
+          <template is="dom-repeat" items="[[_commentsModelAnnotation.comments]]" as="comment">
+            <li class="comment">
+              <span class="comment-context">
+                <a href="mailto:[[comment.user]]" class="user-info">
+                  [[_computeUsername(comment.user)]]
+                </a> on
+                <span class="comment-time">
+                  [[_formatTimestamp(comment.time)]]
+                </span>
+                <iron-icon icon="close" title="Remove" id="removeComment[[index]]"
+                  on-tap="_confirmRemoveComment"></iron-icon>
+              </span>
+              <som-marked-element class="comment-text" markdown="[[comment.text]]"></som-marked-element>
+            </li>
+          </template>
+        </ul>
+      </paper-dialog-scrollable>
+      <paper-textarea autofocus label="add comment" id="commentText" required></paper-textarea>
+      <div class="error">[[_commentsErrorMessage]]</div>
+      <div class="buttons">
+        <button dialog-dismiss>
+          Close
+        </button>
+        <button disabled$="[[_commentInFlight]]" on-tap="_addComment" class="emphasized">
+          Comment
+        </button>
+      </div>
+    </paper-dialog>
+
+    <paper-dialog id="removeCommentConfirmationDialog" with-backdrop>
+      Are you sure to remove this comment?
+      <div class="buttons">
+        <button dialog-dismiss>
+          No
+        </button>
+        <button on-tap="_removeComment" class="emphasized">
+          Yes
+        </button>
+      </div>
+    </paper-dialog>
+
+    <paper-dialog id="groupDialog" with-backdrop>
+      <iron-a11y-keys keys="enter" on-keys-pressed="_group"></iron-a11y-keys>
+      <h2>Group alerts</h2>
+      <paper-input id="groupName" label="Group Name" value=[[_groupName]]></paper-input>
+      <input type="checkbox" id="mergeBugs" checked />
+      Copy bugs to this group
+      <div class="error">[[_groupErrorMessage]]</div>
+      <div class="buttons">
+        <button dialog-dismiss>Cancel</paper-button>
+        <button on-tap="_group" class="emphasized" disabled$="[[_isGrouping]]">OK</paper-button>
+      </div>
+    </paper-dialog>
+
+    <paper-dialog id="ungroupDialog" with-backdrop>
+      <iron-a11y-keys keys="enter" on-keys-pressed="_ungroup"></iron-a11y-keys>
+      <h2>Ungroup</h2>
+      <paper-dialog-scrollable id="groupList" class="scrollable">
+        <label class="checkbox ungroup-row">
+          <input type="checkbox" on-change="_checkAll" data-checkbox-selector=".ungroup-checkbox" />
+          Check/Uncheck All
+        </label>
+        <template is="dom-repeat" items="[[_ungroupModel.alerts]]" as="alert">
+          <label class="checkbox ungroup-row">
+            <input type="checkbox" class="ungroup-checkbox" checked="{{alert.checked::change}}" />
+            [[alert.title]]
+          </label>
+        </template>
+      </paper-dialog-scrollable>
+      <div class="error">[[_ungroupErrorMessage]]</div>
+      <div class="buttons">
+        <button dialog-dismiss>
+          Close
+        </button>
+        <button on-tap="_ungroup" class="emphasized">
+          Ungroup
+        </button>
+      </div>
+    </paper-dialog>
+
+    <paper-dialog id="ungroupBulkDialog" with-backdrop>
+      <iron-a11y-keys keys="enter" on-keys-pressed="_ungroupBulk"></iron-a11y-keys>
+      <h2>Bulk Ungroup</h2>
+      <paper-dialog-scrollable id="groupList" class="scrollable">
+        <label class="checkbox ungroup-row">
+          <input type="checkbox" on-change="_checkAll" data-checkbox-selector=".ungroup-bulk-checkbox" />
+          Check/Uncheck All
+        </label>
+        <template is="dom-repeat" items="[[_ungroupBulkModel]]" as="group">
+          <label class="checkbox ungroup-row">
+            <input type="checkbox" class="ungroup-bulk-checkbox" checked="{{group.checked::change}}" />
+            [[group.alerts.length]] alerts: [[group.title]]
+          </label>
+        </template>
+      </paper-dialog-scrollable>
+      <div class="error">[[_ungroupBulkErrorMessage]]</div>
+      <div class="buttons">
+        <button dialog-dismiss>
+          Close
+        </button>
+        <button on-tap="_ungroupBulk" class="emphasized">
+          Bulk Ungroup
+        </button>
+      </div>
+    </paper-dialog>
+  </template>
+  <script src="som-annotations.js"></script>
+</dom-module>

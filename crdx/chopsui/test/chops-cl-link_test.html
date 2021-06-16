@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<title>clLink</title>
+<meta charset="utf-8">
+<link rel="import" href="../chops-cl-link.html">
+<script src="../../webcomponentsjs/webcomponents-lite.js"></script>
+<script src="../../web-component-tester/browser.js"></script>
+
+<test-fixture id="chops-cl-link-test">
+  <template>
+    <chops-cl-link></chops-cl-link>
+  </template>
+</test-fixture>
+
+<script>
+  'use strict';
+
+  suite('chops-cl-link', function() {
+    let element;
+    setup(function() {
+      element = fixture('chops-cl-link-test');
+    });
+
+    test('clLink w/ everything', function(done) {
+      element.change = '6f1faebd';
+      element.ownerEmail = 'avi@chromium.org';
+
+      flush(function() {
+        assert.equal('avi', element._userName);
+        done();
+      });
+    });
+  });
+</script>

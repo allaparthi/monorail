@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<head>
+  <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
+  <title>Culprit causing flakes</title>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="/common.css">
+  <script src="/bower_components/webcomponentsjs/webcomponents-lite.js"></script>
+  <link rel="import" href="/ui/elements/cats-app.html">
+</head>
+<body>
+  <cats-app id="app" components="Tools>Test>FindIt>Flakiness" page-header="Findit: flakes caused by the culprit">
+    <b>Project:</b> {{project_name}}<br>
+    <b>Commit:</b> <a href="https://crrev.com/{{commit_position or revision}}" target="_blank">{{commit_position or revision}}</a><br>
+    {% if cr_notified %}
+      <b>Notified:</b> Yes<br>
+      <b>Notification time:</b> {{cr_notification_time}}<br>
+    {% else %}
+      <b>Notified:</b> No<br>
+    {% endif %}
+
+    <h1>Analyses</h1>
+    <div id="analyses">
+      <table>
+        <thead>
+          <th></th>
+          <th>Master</th>
+          <th>Builder</th>
+          <th>Step</th>
+          <th>Test</th>
+          <th>Confidence</th>
+        </thead>
+        <tbody>
+        {% for analysis in analyses %}
+          <tr>
+            <td>{{ loop.index }}</td>
+            <td>{{ analysis.master_name }}</td>
+            <td>{{ analysis.builder_name }}</td>
+            <td>{{ analysis.step_name }}</td>
+            <td>
+              <a href="https://analysis.chromium.org/p/chromium/flake-portal/analysis/analyze?key={{ analysis.key }}" target="_blank">
+                {{ analysis.test_name }}
+              </a>
+            </td>
+            <td>
+              {% if analysis.confidence_in_culprit is not none %}
+                {{ '%0.1f%%' % (analysis.confidence_in_culprit * 100) }}
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </cats-app>
+  <script>
+    document.getElementById('app').userInfo = {{ (user_info or {}) | tojson | safe }};
+  </script>
+</body>

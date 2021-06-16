@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<title>bugInputTest</title>
+<meta charset="utf-8">
+<script src="../../webcomponentsjs/webcomponents-lite.js"></script>
+<script src="../../web-component-tester/browser.js"></script>
+<link rel="import" href="../chops-bug-input.html">
+
+<test-fixture id="chops-bug-input-test">
+  <template>
+    <chops-bug-input></chops-bug-input>
+  </template>
+</test-fixture>
+
+<script>
+  'use strict';
+
+  suite('chops-bug-input', function() {
+    let element;
+    setup(function() {
+      element = fixture('chops-bug-input-test');
+    });
+
+    test('computeBugId', function(done) {
+      // Test invalid bug input.
+      assert.equal('Unknown', element._computeBugId('not a valid bug input'));
+
+      // Test valid bug input.
+      assert.equal('13928', element._computeBugId('crbug.com/13928'));
+      assert.equal('13928', element._computeBugId('crbug.com/projectname/id=13928?c=123'));
+      assert.equal('13928', element._computeBugId('13928'));
+      done();
+    });
+
+    test('property changes are correct', function(done) {
+      element.shadowRoot.querySelector('paper-input').value = '1nvalid';
+      assert.equal(element.value, '1nvalid');
+      assert.isTrue(element.invalidBug);
+      assert.equal('Unknown', element.bugId);
+      assert.equal('chromium', element.bugProject);
+
+      element.shadowRoot.querySelector('paper-input').value = 'crbug/192800';
+      assert.equal(element.value, 'crbug/192800');
+      assert.isFalse(element.invalidBug);
+      assert.equal('192800', element.bugId);
+      assert.equal('chromium', element.bugProject);
+
+      element.shadowRoot.querySelector('paper-input').value = 'monorail:192800';
+      assert.equal(element.value, 'monorail:192800');
+      assert.isFalse(element.invalidBug);
+      assert.equal('192800', element.bugId);
+      assert.equal('monorail', element.bugProject);
+
+      element.shadowRoot.querySelector('paper-input').value =
+         'https://bugs.chromium.org/p/gerrit/issues/detail?id=1543';
+      assert.equal(element.value,
+          'https://bugs.chromium.org/p/gerrit/issues/detail?id=1543');
+      assert.isFalse(element.invalidBug);
+      assert.equal('1543', element.bugId);
+      assert.equal('gerrit', element.bugProject);
+
+      done();
+    });
+  });
+</script>

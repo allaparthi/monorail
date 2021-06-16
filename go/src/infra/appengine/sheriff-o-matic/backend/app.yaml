@@ -1,0 +1,14 @@
+runtime: go111
+service: analyzer
+instance_class: F4_1G
+
+handlers:
+- url: /_cron/analyze/.*
+  script: auto
+  secure: always
+  login: admin
+
+- url: /_ah/queue/.*
+  script: auto
+  secure: always
+  login: admin

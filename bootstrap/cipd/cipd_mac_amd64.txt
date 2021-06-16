@@ -1,0 +1,24 @@
+# Copyright 2015 The Chromium Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+#
+# Instructions for building packages can be found in the "doc/" subdirectory
+# under that package name.
+
+# Proto3 Protocol Buffers generator (protoc).
+infra/tools/protoc/mac-amd64    protobuf_version:v3.12.1
+
+# Node.js deployment.
+infra/nodejs/nodejs/mac-amd64   node_version:12.13.0
+
+# LogDog tool.
+infra/tools/luci/logdog/logdog/mac-amd64  git_revision:5cf65fdf804a9b3f3023f79d5b3cab2a88ccd09e
+
+# cloud_sql_proxy tool (https://cloud.google.com/sql/docs/mysql/sql-proxy)
+infra/tools/cloud_sql_proxy/mac-amd64  downloaded:2017_07_25
+
+# Crimson tool.
+infra/machine-db/crimson/mac-amd64 stable
+
+# Helper for building Docker images and GAE tarballs.
+infra/tools/cloudbuildhelper/mac-amd64 git_revision:09f72d9e10be69fc491a6af8158481b98ab603df

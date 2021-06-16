@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<head>
+  <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
+  <title>Coverage Summary for {{gitiles_commit.project}} - {{gitiles_commit.revision[:7]}} - {{path}}</title>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="/common.css">
+  <style>
+    .coverage-header {
+      padding: 5px 10px;
+      border-bottom: 1px solid #DBDBDB;
+      background-color: #EEE;
+      line-height: 24px;
+      text-align: center;
+      font-weight: bold;
+      font-size: 18px;
+    }
+    .poor-coverage {
+      background-color: #FC8D7E;
+    }
+    .low-coverage {
+      background-color: #FAC687;
+    }
+    .medium-coverage {
+      background-color: #F5F57D;
+    }
+    .high-coverage {
+      background-color: #A6F5A6;
+    }
+    .legend {
+      font-size: 14px;
+    }
+    .legend .color-sample {
+      padding: 2px 8px;
+      border: 1px solid black;
+      display: inline;
+    }
+    tbody tr:hover td, tfoot tr:hover td {
+      background-color: #F5F5F5;
+      border-color: #E4E4E4 !important;
+    }
+    thead a:hover {
+      background-color: yellow;
+    }
+    thead tr {
+      font-size: 16px;
+    }
+    tbody tr {
+      font-size: 14px;
+    }
+    tfoot tr {
+      font-size: 16px;
+    }
+    .warning {
+      background-color: #FFD0D0;
+      padding: 10px;
+      margin: 10px;
+      border-radius: 5px;
+      font-family: sans-serif;
+      font-style: italic;
+    }
+  </style>
+  <script src="/bower_components/webcomponentsjs/webcomponents-lite.js"></script>
+  <link rel="import" href="/ui/elements/cats-app.html">
+  <link rel="import" href="/ui/elements/coverage/coverage-documentation.html">
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+  <script src="/ui/js/coverage.js"></script>
+  <script>
+    function FilterComponents() {
+      let filterString = $('#filter').val() || '';
+      let filterValuesLower = filterString.split(',');
+      // Remove empty values.
+      filterValuesLower = $.map(filterValuesLower, function(v, i) {
+        return $.trim(v);
+      });
+      filterValuesLower = filterValuesLower.filter(function(v) {
+        return v !== '';
+      });
+
+      $('tbody tr').each(function(index, trElement) {
+        // Empty search matches everything.
+        let match = filterValuesLower.length == 0;
+
+        let pathLower = $(trElement).data('path').toLowerCase();
+        for (let filterValueLower of filterValuesLower) {
+          if (pathLower.includes(filterValueLower)) {
+            match = true;
+            break;
+          }
+        }
+
+        if (match) {
+          $(trElement).show();
+        } else {
+          $(trElement).hide();
+        }
+      });
+    }
+    $(function() {
+      document.getElementById('app').userInfo = {{ (user_info or {}) | tojson | safe }};
+      $('#filter').on('keyup', FilterComponents);
+      $('#filter').on('change', FilterComponents);
+    });
+  </script>
+</head>
+
+<body>
+  <cats-app id="app" components="Infra>Test>CodeCoverage" page-header="Code Coverage: summary by {{data_type}} ({{gitiles_commit.project}} project on {{platform_ui_name}} platform)">
+    <coverage-documentation></coverage-documentation>
+    <br>
+    <div>
+      <div style="font-size:18px">
+        <form id="platform_select_form" method="get">
+          Platform:
+          <select id="platform_select" name="platform" onchange="switchPlatform()">
+          {% for option in platform_select.options %}
+            <option value="{{option.value}}" {% if option.selected %}selected="selected" {% endif %}>{{option.ui_name}}</option>
+          {% endfor %}
+          </select>
+          View:
+          <select id="view_select" name="path" onchange="switchPlatform()">
+          {% if data_type == 'components' %}
+            <option value="{{path}}" selected="selected">By Component</option>
+            <option value="//">By Directory</option>
+          {% else %}
+            <option value="{{path}}" selected="selected">By Directory</option>
+            <option value=">>">By Component</option>
+          {% endif %}
+          </select>
+          {% for name, value in platform_select.params.iteritems() %}
+            <input type="hidden" name="{{name}}" value="{{value}}"/>
+          {% endfor %}
+          See <a href="/p/{{luci_project}}/coverage/dir?host={{gitiles_commit.host}}&project={{gitiles_commit.project}}&ref={{gitiles_commit.ref}}&platform={{platform}}&list_reports=true">Previous Reports</a>
+        </form>
+        <br>
+        <br>
+        {% if warning %}
+        <div class="warning">{{warning}}</div>
+        {% endif %}
+      </div>
+      <div class="legend">
+        Legend:
+        <div class="color-sample high-coverage"> &ge; 90% </div>
+        <div class="color-sample medium-coverage"> 70% - 90% </div>
+        <div class="color-sample low-coverage"> 50% - 70% </div>
+        <div class="color-sample poor-coverage"> &lt; 50% </div>
+      </div>
+      <table>
+        <thead>
+          <tr class="coverage-header">
+            <th colspan="4">
+              <a href="/p/{{luci_project}}/coverage?host={{gitiles_commit.host}}&project={{gitiles_commit.project}}&platform={{platform}}">{{gitiles_commit.project}}</a>
+              - {{gitiles_commit.revision[:7]}}
+              {% if data_type == 'components' %}
+                {% if path_root == path %}
+                - <a href="/p/{{luci_project}}/coverage/component?host={{gitiles_commit.host}}&project={{gitiles_commit.project}}&ref={{gitiles_commit.ref}}&revision={{gitiles_commit.revision}}&path=>>&platform={{platform}}">ALL</a>
+                {% else %}
+                - <a href="/p/{{luci_project}}/coverage/component?host={{gitiles_commit.host}}&project={{gitiles_commit.project}}&ref={{gitiles_commit.ref}}&revision={{gitiles_commit.revision}}&path=>>&platform={{platform}}">ALL>></a><a style="padding-left:.3ex;" href="/p/{{luci_project}}/coverage/component?host={{gitiles_commit.host}}&project={{gitiles_commit.project}}&ref={{gitiles_commit.ref}}&revision={{gitiles_commit.revision}}&path={{path}}&platform={{platform}}">{{path}}</a>
+                {% endif %}
+              {% else %}
+              - <a title="{{path_root}}" href="/p/{{luci_project}}/coverage/dir?host={{gitiles_commit.host}}&project={{gitiles_commit.project}}&ref={{gitiles_commit.ref}}&revision={{gitiles_commit.revision}}&path={{path_root}}&platform={{platform}}">{{path_root}}</a>{% if path_parts %}{% for name, sub_path in path_parts %}<a style="padding-left:.3ex;" title="{{sub_path}}" href="/p/{{luci_project}}/coverage/{{'dir' if name.endswith('/') else 'file'}}?host={{gitiles_commit.host}}&project={{gitiles_commit.project}}&ref={{gitiles_commit.ref}}&revision={{gitiles_commit.revision}}&path={{sub_path}}&platform={{platform}}">{{name}}</a>{% endfor %}{% endif %}
+              {% endif %}
+            </th>
+          </tr>
+          {% if data_type == 'components' and path == '>>'%}
+          <tr style="text-align:left">
+            <th colspan="4">
+            Component Filter: <input type="text" id="filter" size="30"/> (e.g. &#34;crypto, vr&#34;)
+            </th>
+          </tr>
+          {% endif %}
+          <tr>
+            {% if data_type == 'components' and path == '>>'%}
+            <th>
+              Component
+            </th>
+            {% else %}
+            <th>Path</th>
+            {% endif %}
+            {% for m in metrics %}
+              <th title="{{ m.detail }}">{{ m.name | capitalize }} </th>
+            {% endfor %}
+          </tr>
+        </thead>
+
+        <tbody>
+          {% if data_type == 'components' %}
+            {% set entries = data.metadata.dirs %}
+          {% else %}
+            {% set entries = data.metadata.dirs + data.metadata.files %}
+          {% endif %}
+        {% for datum in entries if datum.summaries[0].total %}
+          <tr data-path="{{datum.path}}">
+            <td>
+              {% if data_type != 'components' %}
+              <a href="/p/{{luci_project}}/coverage/{{'dir' if datum.name.endswith('/') else 'file'}}?host={{gitiles_commit.host}}&project={{gitiles_commit.project}}&ref={{gitiles_commit.ref}}&revision={{gitiles_commit.revision}}&path={{path}}{{datum.name}}&platform={{platform}}">{{datum.name}}</a>
+              {% else %}
+                {% if path == '>>' %}
+                  {% set real_data_type = 'components' %}
+                  {% set url_path = 'component' %}
+                {% else %}
+                  {% set real_data_type = 'dirs' %}
+                  {% set url_path = 'dir' %}
+                {% endif %}
+                <a href="/p/{{luci_project}}/coverage/{{url_path}}?host={{gitiles_commit.host}}&project={{gitiles_commit.project}}&ref={{gitiles_commit.ref}}&revision={{gitiles_commit.revision}}&path={{datum.path}}&data_type={{real_data_type}}&platform={{platform}}">{{datum.path}}</a>
+              {% endif %}
+            </td>
+            {% for target_metric in metrics %}
+              {% set found = False %}
+              {% for metric in datum.summaries %}
+                {% if not found and metric.name == target_metric.name %}
+                  {% set found = True %}
+                  {% if metric.total == 0 %}
+                    {% set percent = 100 %}
+                  {% else %}
+                    {% set percent = (metric.covered*100.0/metric.total) | int %}
+                  {% endif %}
+                  {% if percent >= 90 %}
+                    {% set css_class = 'high-coverage' %}
+                  {% elif percent >= 70 %}
+                    {% set css_class = 'medium-coverage' %}
+                  {% elif percent >=50 %}
+                    {% set css_class = 'low-coverage' %}
+                  {% else %}
+                    {% set css_class = 'poor-coverage' %}
+                  {% endif %}
+                  <td class="{{css_class}}">
+                     {{ ('%3d' % percent).replace(' ', '&nbsp;') | safe }}%
+                     ({{ metric.covered }}/{{ metric.total }})
+                  </td>
+                {% endif %}
+              {% endfor %}
+            {% endfor %}
+          </tr>
+        {% endfor %}
+        </tbody>
+
+        {% if data_type == 'dirs' or (data_type == 'components' and path != '>>') %}
+        <tfoot>
+          <tr>
+            <td>TOTALS</td>
+            {% for target_metric in metrics %}
+              {% set found = False %}
+              {% for metric in data.metadata.summaries %}
+                {% if not found and metric.name == target_metric.name %}
+                  {% set found = True %}
+                  {% if metric.total == 0 %}
+                    {% set percent = 100 %}
+                  {% else %}
+                    {% set percent = (metric.covered*100.0/metric.total) | int %}
+                  {% endif %}
+                  {% if percent >= 90 %}
+                    {% set css_class = 'high-coverage' %}
+                  {% elif percent >= 70 %}
+                    {% set css_class = 'medium-coverage' %}
+                  {% elif percent >= 50 %}
+                    {% set css_class = 'low-coverage' %}
+                  {% else %}
+                    {% set css_class = 'poor-coverage' %}
+                  {% endif %}
+                  <td class="{{css_class}}">
+                    {{ ('%3d' % percent).replace(' ', '&nbsp;') | safe }}%
+                    ({{ metric.covered }}/{{ metric.total }})
+                  </td>
+                {% endif %}
+              {% endfor %}
+            {% endfor %}
+          </tr>
+        </tfoot>
+        {% endif %}
+      </table>
+    </div>
+  </cats-app>
+</body>

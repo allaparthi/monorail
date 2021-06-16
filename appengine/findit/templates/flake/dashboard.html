@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<head>
+  <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
+  <title>Analyses of Flakes</title>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="/common.css">
+  <script src="/ui/js/common.js"></script>
+  <script src="/bower_components/webcomponentsjs/webcomponents-lite.js"></script>
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+  <link rel="import" href="/ui/elements/cats-app.html">
+  <style type="text/css">
+    .truncated {
+      max-width: 600px;
+      display: inline-block;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .truncated .tooltiptext {
+      visibility: hidden;
+      max-width: 1200px;
+      background-color: #fee;
+      text-align: left;
+      padding: 1px 0;
+      border: 1px solid #fdd;
+      border-radius: 2px;
+      position: absolute;
+      z-index: 1;
+      opacity: 0.80;
+    }
+
+    .truncated:hover .tooltiptext {
+      visibility: visible;
+    }
+
+    .previous, .next {
+      color: #1A73EB;
+      background: none;
+      border: none;
+      padding: 0;
+      font: inherit;
+      border-bottom:1px solid #1A73EB;
+      cursor: pointer;
+    }
+
+    .disabled {
+      color: #9AA0A6;
+      background: none;
+      border: none;
+      padding: 0;
+      font: inherit;
+      border-bottom:1px solid #9AA0A6;
+      cursor: pointer;
+    }
+
+    /*Analysis statuses*/
+    .completed {
+      color: #ffffff;
+      background-color: #8fdf5f;
+      border-color: #4f8530;
+    }
+    .error {
+      color: #ffffff;
+      background-color: #e98080;
+      border-color: #a77272;
+    }
+    .running {
+      color: #666666;
+      background-color: #fffc6c;
+      border-color: #c5c56d;
+    }
+
+    .paging {
+      padding: 5px;
+    }
+  </style>
+  <script type="text/javascript">
+    $(function() {
+      $('.timestamp').each(function() {
+        var unixTimestamp = $(this).text();
+        var localTime = getLocalTimeString(unixTimestamp);
+        $(this).text(localTime);
+      });
+    });
+
+    // Converts the given unix timestamp to the local time.
+    function getLocalTimeString(unixTimestamp) {
+      if (unixTimestamp == null) {
+        return unixTimestamp;
+      }
+      var localDate = new Date(0);
+      localDate.setUTCSeconds(unixTimestamp);
+      return (localDate.getFullYear() +
+              "-" +
+              ("0" + (localDate.getMonth() + 1)).slice(-2) +
+              "-" +
+              ("0" + localDate.getDate()).slice(-2) +
+              " " +
+              ("0" + localDate.getHours()).slice(-2) +
+              ":" +
+              ("0" + localDate.getMinutes()).slice(-2));
+    }
+
+    function getParameters() {
+      parameters = {}
+      if ('{{ triage }}') {
+        parameters['triage'] = '1'
+        parameters['start_date'] = $('#start_date').val() == 'mm/dd/yyyy' ? undefined : $('#start_date').val();
+        parameters['end_date'] = $('#end_date').val() == 'mm/dd/yyyy' ? undefined : $('#end_date').val();
+      }
+      parameters['step_name'] = encodeURIComponent($('#step_name').val());
+      parameters['test_name'] = encodeURIComponent($('#test_name').val());
+      parameters['result_status'] = $('#result_status').val() == 'default' ? undefined : $('#result_status').val();
+      return parameters;
+    }
+
+    function createUrl(parameters) {
+      var params = [];
+      for(var key in parameters) {
+        if (parameters[key] != undefined && parameters[key] != '') {
+          params.push(key + '=' + parameters[key]);
+        }
+      }
+
+      if (params.length == 0) {
+        return '/p/chromium/flake-portal/analysis';
+      } else {
+        return '/p/chromium/flake-portal/analysis?' + params.join('&');
+      }
+    };
+
+    function loadPage(obj) {
+      parameters = getParameters();
+      if (obj.attr('class') == 'previous') {
+        parameters['cursor'] = '{{ prev_cursor }}';
+        parameters['direction'] = 'previous';
+      } else if (obj.attr('class') == 'next') {
+        parameters['cursor'] = '{{ cursor }}';
+        parameters['direction'] = 'next';
+      } else {
+        return;
+      }
+      var newUrl = createUrl(parameters);
+      window.location.assign(newUrl);
+    }
+
+    function requestFilteredResults(e) {
+      parameters = getParameters();
+      newUrl = createUrl(parameters);
+      window.location.assign(newUrl);
+      e.preventDefault();
+    };
+
+    function handleResultStatusChanged(e) {
+      requestFilteredResults(e);
+    };
+
+    function handleFilterResults(e) {
+      requestFilteredResults(e);
+    };
+
+    $(function() {
+      $(document).on('click', '.previous, .next', function() {
+        loadPage($(this));
+      });
+
+      if ('{{ result_status_filter }}' != '-1') {
+        $('#result_status').val('{{ result_status_filter }}');
+      }
+      $('#result_status').change(handleResultStatusChanged);
+      $('#filter_results').click(handleFilterResults);
+
+      if ('{{ cursor }}' == '') {
+        $('.next').prop('disabled', true);
+        $('.next').addClass('disabled');
+      } else {
+        $('.next').prop('disabled', false);
+      }
+
+      if ('{{ prev_cursor }}' == '') {
+        $('.previous').prop('disabled', true);
+        $('.previous').addClass('disabled');
+      } else {
+        $('.previous').prop('disabled', false);
+      }
+
+      $('.analysis-status-info').click(function() {
+        displayMessage(400);  // Explanation of Analysis Status.
+      });
+
+      $('.finding-info').click(function() {
+        displayMessage(500);  // Explanation of Analysis Findings.
+      });
+
+      document.getElementById('app').userInfo = {{ (user_info or {}) | tojson | safe }};
+    });
+  </script>
+</head>
+<body>
+  <cats-app id="app" components="Tools>Test>FindIt>Flakiness" page-header="Findit: Previous Analyses of Flakes">
+    <form method="get" action="/p/chromium/flake-portal/analysis">
+      <table>
+        <tr>
+          <td style="text-align:right">Test:</td>
+          <td>
+            <input type="text" name="test_name" id="test_name" size="100" value="{{ test_name_filter }}" placeholder="DesktopEngagementServiceTest.TestTimeoutDiscount"/>
+          </td>
+        </tr>
+        <tr>
+          <td style="text-align:right">Step (Optional):</td>
+          <td>
+            <input type="text" name="step_name" id="step_name" size="100" value="{{ step_name_filter }}" placeholder="unit_tests on Mac-10.9"/>
+          </td>
+        </tr>
+      </table>
+      {% if triage %}
+      <br>
+      <form>
+        Start Date
+        <input type="date" id="start_date" value={{ start_date }}></input>
+        End Date
+        <input type="date" id="end_date" value={{ end_date }}></input>
+      </form>
+      {% endif %}
+      <input type="submit" value="Search" id="filter_results">
+      <br>
+    </form>
+    <br>
+    <div class="paging">
+      <button class="previous">Previous</button>
+      <button class="next">Next</button>
+    </div>
+    <!-- TODO(https://crbug.com/833679): make this a polymer element. -->
+    <table>
+      <thead>
+        <tr>
+          <th>Request Time</th>
+          <th>Build of Flake Occurrence</th>
+          <th>Flaky Test</th>
+          <th>Status (<a class="analysis-status-info" href="javascript:">?</a>)</th>
+          <th>Findings (<a class="finding-info" href="javascript:">?</a>)</th>
+          <th>Bug ID</th>
+          <th>
+            <select id="result_status">
+              <option value="default">Triage Status</option>
+              <option value="0">Correct - Found</option>
+              <option value="10">Incorrect - Found</option>
+              <option value="20">Incorrect - Not Found</option>
+              <option value="30">Untriaged - Found</option>
+              <option value="40">Untriaged - Not Found</option>
+              <option value="50">Correct - Not Found</option>
+            </select>
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for analysis in master_flake_analyses %}
+        <tr>
+          <td>
+            <div class="timestamp">{{ analysis.request_utc_timestamp or '' }}</div>
+          </td>
+          <td>
+            <a href="https://ci.chromium.org/b/{{analysis.build_id}}">{{ analysis.master_name }}/ {{ analysis.builder_name }}/ {{ analysis.build_number }}</a>
+          </td>
+          <td>
+            <div>
+              Step: {{ analysis.step_name }}
+              <br>
+              <div class="truncated">
+                Test: <a href="/p/chromium/flake-portal/analysis/analyze?key={{ analysis.key }}" target="_blank">{{ analysis.test_name }}</a>
+                <div class="tooltiptext">{{ analysis.test_name }}</div>
+              </div>
+            </div>
+          </td>
+          <td>
+            <span class={{ analysis.status.lower() }}>{{ analysis.status }}</span>
+          </td>
+          <td>
+            {% if analysis.suspected_build %}
+              Regression: build <a href="https://ci.chromium.org/b/{{ analysis.suspected_build_id }}" target="_blank">{{ analysis.suspected_build }}</a>
+              <br>
+            {% endif %}
+            {% if analysis.culprit %}
+              Culprit: <a href={{ analysis.culprit.url }} target="_blank">r{{ analysis.culprit.commit_position }}</a>
+              {% if analysis.confidence_in_culprit is not none %}
+                (
+                  {{ '%0.1f%%' % (analysis.confidence_in_culprit * 100) }}
+                  ,
+                  <a href="/p/chromium/flake-portal/analysis/culprit?key={{ analysis.culprit.key }}" target="_blank">
+                    {% if analysis.culprit and analysis.culprit.cr_notified %}
+                      notified
+                    {% else %}
+                      unnotified
+                    {% endif %}
+                  </a>
+                )
+              {% endif %}
+            {% endif %}
+          </td>
+          <td>
+            {% if analysis.bug_id %}
+              <a href="https://bugs.chromium.org/p/chromium/issues/detail?id={{ analysis.bug_id }}" target="_blank">{{ analysis.bug_id }}</a>
+            {% endif %}
+          </td>
+          <td>
+            {% if analysis.result_status %}
+              {{ analysis.result_status }}
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <div class="paging">
+      <button class="previous">Previous</button>
+      <button class="next">Next</button>
+    </div>
+  <cats-app>
+</body>

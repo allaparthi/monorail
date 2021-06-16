@@ -1,0 +1,9 @@
+name: luci/resultdb/recorder
+extends: ../../../base.yaml
+
+contextdir: ../../../../../go/src/go.chromium.org/luci/resultdb/cmd/recorder/docker
+deterministic: true
+
+build:
+  - go_binary: go.chromium.org/luci/resultdb/cmd/recorder
+    dest: ${contextdir}/bin/recorder

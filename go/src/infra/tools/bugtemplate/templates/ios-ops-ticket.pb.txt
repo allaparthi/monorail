@@ -1,0 +1,19 @@
+summary: "[iOS Ops] "
+
+description: <<END
+Filed using go/ios-ops-ticket.
+
+If this is an outage or a general infrastructure failure (e.g. a bot is down),
+please file a bug using go/bugatrooper.
+
+Please describe your issue.
+
+END
+
+components: "Infra>Client>Chrome"
+cc: "jbudorick@chromium.org"
+cc: "sergeyberezin@chromium.org"
+type: Bug
+pri: P2
+labels: "OS-iOS"
+labels: "Restrict-View-Google"

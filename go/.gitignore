@@ -1,0 +1,7 @@
+/.cache
+/.glide
+/.vendor
+/bin
+/coverage
+/pkg
+.deps_repo_versions.json

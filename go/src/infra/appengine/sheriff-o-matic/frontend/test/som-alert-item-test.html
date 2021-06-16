@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<script src="/bower_components/webcomponentsjs/webcomponents-loader.js"></script>
+<script src="/bower_components/web-component-tester/browser.js"></script>
+<link rel="import" href="/bower_components/iron-test-helpers/iron-test-helpers.html">
+<link rel="import" href="/elements/som-alert-item/som-alert-item.html">
+<test-fixture id="basic">
+  <template>
+    <som-alert-item></som-alert-item>
+  </template>
+</test-fixture>
+<script>
+(function() {
+  'use strict';
+  var clock;
+  var element;
+  var server;
+  var responseHeaders = {
+      json: { 'Content-Type': 'application/json' },
+  };
+
+  setup(function() {
+    element = fixture('basic');
+    clock = sinon.useFakeTimers();
+    server = sinon.fakeServer.create();
+    element.alert = {};
+  });
+
+  teardown(function() {
+    server.restore();
+  });
+
+  suite('basic tests', function() {
+    test('renders bare minimum', function(done) {
+      element.alert = {
+        title: 'test title',
+        body: 'test body',
+        links: [],
+        type: '',
+      };
+      flush(function () {
+        assert.equal(
+            'test title',
+            element.$$('#alertTitle').textContent.trim());
+        done();
+      });
+    });
+
+    test('snooze hides snooze button', function() {
+      element.annotation = {
+        snoozed: false,
+      };
+      expect(element.$.snooze).to.be.visible;
+      expect(element.$.unsnooze).to.be.hidden;
+
+      element.annotation = {
+        snoozed: true,
+      };
+      expect(element.$.snooze).to.be.hidden;
+      expect(element.$.unsnooze).to.be.visible;
+    });
+
+    test('snoozed adds text to header', function(done) {
+      element.annotation = {
+        snoozed: false,
+      };
+
+      expect(element.$$('#snoozeTitle')).be.hidden;
+
+      element.annotation = {
+        snoozed: true,
+        snoozeTime: 60 * 60 * 1000, // 60 minutes in milliseconds
+      };
+
+      flush(function () {
+        expect(element.$$('#snoozeTitle')).be.visible;
+        assert.equal(element.$$('#snoozeTitle').textContent.trim(),
+          'Snoozed (1h left):');
+        done();
+      });
+    });
+
+    test('snoozed works for durations > 24h', function(done) {
+      element.annotation = {
+        snoozed: false,
+      };
+
+      expect(element.$$('#snoozeTitle')).be.hidden;
+
+      element.annotation = {
+        snoozed: true,
+        snoozeTime: 26 * 60 * 60 * 1000, // 1 day, 2hrs in milliseconds
+      };
+
+      flush(function () {
+        expect(element.$$('#snoozeTitle')).be.visible;
+        assert.equal(element.$$('#snoozeTitle').textContent.trim(),
+          'Snoozed (1d 2h left):');
+        done();
+      });
+    });
+
+    test('snoozed affects class', function() {
+      element.alert = {
+        resolved: false,
+      };
+      element.annotation = {
+        snoozed: false,
+      };
+      assert.notInclude(element.$.root.className, 'dimmed');
+
+      element.annotation = {
+        snoozed: true,
+      };
+      assert.include(element.$.root.className, 'dimmed');
+    });
+
+    test('resolved affects class', function() {
+      element.alert = {
+        resolved: false,
+      };
+      element.annotation = {
+        snoozed: false,
+      };
+      assert.notInclude(element.$.root.className, 'dimmed');
+
+      element.alert = {
+        resolved: true,
+      };
+      assert.include(element.$.root.className, 'dimmed');
+    });
+
+    test('file bug fires an event', function(done) {
+      element.addEventListener('link-bug', function() {
+        done();
+      });
+
+      element._linkBug();
+    });
+
+    test('fires remove event when remove bug clicked', function(done) {
+      element.annotation = {
+        bugs: [{ id: '1234', projectId: 'chromium' }],
+        bugData: []
+      };
+
+      element.addEventListener('remove-bug', (evt) => {
+        assert.equal(evt.detail.bug, '1234');
+        assert.equal(evt.detail.project, 'chromium');
+        done();
+      });
+
+      flush(function() {
+        element.$.bugsList.querySelector('#remove0').click();
+      });
+    });
+
+    test('no bug list when no bugs', function() {
+      // The template counts as an element
+      assert.equal(1, element.$.bugsList.childElementCount);
+    })
+
+    test('has a bug list when annotation has bugs', function(done) {
+      element.annotation = {
+        bugs: [{ id: '1234', projectId: 'chromium' }],
+        bugData: []
+      };
+
+      flush(function () {
+        assert.lengthOf(element.$.bugsList.querySelectorAll(".bug"), 1);
+        assert.equal('Bug 1234', element.$.bugsList.querySelector("a").textContent);
+        assert.equal(element.$.bugsList.querySelector("a").href, 'https://crbug.com/chromium/1234');
+        done();
+      });
+    });
+
+    test('render useful links', function(done) {
+      const chromiumUrl1 = 'https://ci.chromium.org/p/chromium/builders/ci/Linux%20TSan%20Tests';
+      const chromiumUrl2 = 'https://ci.chromium.org/p/chromium/builders/ci/linux-trusty-rel';
+
+      element.alert = {links: [
+        {title: 'one', href: chromiumUrl1},
+        {title: 'two', href: chromiumUrl2}
+      ]};
+
+      assert.isTrue(element._haveLinks(null, element.alert));
+
+      flush(function() {
+        let links = element.$.usefulLinks.querySelectorAll(".alert-link");
+        assert.equal(2, links.length);
+        assert.equal('one', links[0].innerHTML);
+        assert.equal(chromiumUrl1, links[0].href);
+        assert.equal('two', links[1].innerHTML);
+        assert.equal(chromiumUrl2, links[1].href);
+        done();
+      });
+    });
+
+    test('clicking comments fires an event', function(done) {
+      element.addEventListener('comment', function() {
+        done();
+      });
+
+      element._comment({preventDefault: function() {}});
+    });
+
+    test('renders number of comments', function(done) {
+      element.annotation = {
+        comments: [{'text': 'hehe'}, {'text': 'i'}, {'text': 'am'},
+          {'text': 'many'}, {'text': 'comments'}]
+      }
+      flush(function() {
+        assert.equal(5, element._numComments);
+        assert.equal("(5)", element.$.commentsLink.textContent.trim());
+        done();
+      });
+    });
+
+    test('_isCollapsed is computed correctly', function() {
+      element.collapseByDefault = false;
+      element.openState = '';
+      element.annotation = {'snoozed': false};
+
+      assert.equal(false, element._isCollapsed);
+
+      element.collapseByDefault = true;
+      assert.equal(true, element._isCollapsed);
+
+      element.collapseByDefault = false;
+      assert.equal(false, element._isCollapsed);
+
+      element.annotation = {'snoozed': true};
+      assert.equal(true, element._isCollapsed);
+
+      element.openState = 'opened';
+      assert.equal(false, element._isCollapsed);
+    });
+  });
+})();
+</script>

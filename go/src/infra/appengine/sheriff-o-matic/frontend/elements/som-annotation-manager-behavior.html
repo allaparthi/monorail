@@ -1,0 +1,57 @@
+<link rel="import" href="../bower_components/iron-ajax/iron-request.html">
+
+<script>
+  function jsonParsePromise(resp) {
+    if (!resp.ok) {
+      throw Error(resp.statusText);
+    }
+    return resp.json();
+  }
+  // Manages annotation state.
+  AnnotationManagerBehavior = {
+    // Compute the annotation for a given alert.
+    computeAnnotation: function(annotations, alert) {
+      let key = alert.key;
+
+      let ann = annotations[key];
+      let returnVal = {
+        key: key,
+      };
+
+      // We want to make sure snoozed is not undefined because this makes later
+      // checks weirdly falsey.
+      returnVal.snoozed = false;
+
+      if (ann) {
+        if (ann.snoozeTime) {
+          returnVal.snoozeTime = ann.snoozeTime;
+          returnVal.snoozed = Date.now() < ann.snoozeTime;
+        }
+
+        if (ann.bugs != undefined) {
+          returnVal.bugs = ann.bugs;
+        }
+
+        if (ann.bug_data != undefined) {
+          returnVal.bugData = ann.bug_data;
+        }
+
+        // TODO(zhangtiff): Replace this with actually deleting old annotations.
+        if (ann.comments != undefined) {
+          let dateCutoff = new Date(); // 10 days ago.
+          dateCutoff.setDate(dateCutoff.getDate() - 10);
+          returnVal.comments = ann.comments.filter(function (c, i) {
+            let time = new Date(c.time);
+            c.index = i;
+            return time.getTime() > dateCutoff.getTime();
+          });
+        }
+
+        if (ann.group_id != undefined) {
+          returnVal.groupID = ann.group_id;
+        }
+      }
+      return returnVal;
+    },
+  };
+</script>

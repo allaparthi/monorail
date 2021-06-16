@@ -1,0 +1,82 @@
+<link rel="import" href="../../bower_components/polymer/polymer-element.html">
+
+<link rel="import" href="../../bower_components/iron-icon/iron-icon.html">
+<link rel="import" href="../../bower_components/iron-pages/iron-pages.html">
+<link rel="import" href="../../bower_components/paper-dropdown-menu/paper-dropdown-menu.html">
+<link rel="import" href="../../bower_components/paper-item/paper-item.html">
+<link rel="import" href="../../bower_components/paper-listbox/paper-listbox.html">
+<link rel="import" href="../../bower_components/paper-tabs/paper-tabs.html">
+
+<link rel="import" href="../../elements/som-webkit-tests/som-webkit-tests.html">
+
+<dom-module id="som-examine">
+  <template>
+    <style>
+      iframe {
+        border: 0;
+        width: 100%;
+        flex-grow: 1;
+      }
+      paper-tabs {
+        background-color: #333;
+        color: white;
+      }
+      paper-tab iron-icon {
+        margin: 1em;
+        color: white;
+      }
+      som-webkit-tests {
+        display: flex;
+        flex-direction: column;
+        flex-grow: 1;
+      }
+      .builder-page {
+        padding: 1em;
+        min-height: 1000px;
+        display: flex;
+        flex-direction: column;
+      }
+      #testMenu {
+        flex-grow: 1;
+        display: flex;
+        flex-direction: row;
+      }
+    </style>
+    <template is="dom-if" if="[[!hideTests]]">
+      <paper-dropdown-menu id="testMenu" label="Failing test">
+        <paper-listbox slot="dropdown-content" class="dropdown-content" attr-for-selected="value" selected="{{selectedTest}}">
+          <template is="dom-repeat" items="[[_computeFailingTests(selectedBuilder, selectedStep)]]" as="test">
+            <paper-item value="[[test]]">[[test]]</paper-item>
+          </template>
+        </paper-listbox>
+      </paper-dropdown-menu>
+    </template>
+
+    <!-- iframe for each builder/build/test log etc -->
+    <paper-tabs id="builderTabs" selected="{{selectedBuilder}}" attr-for-selected="id" scrollable>
+      <template is="dom-repeat" items="[[alert.extension.builders]]" as="builder">
+        <paper-tab id$="[[_tabId(builder)]]">
+          [[_tabTitle(builder)]]
+          <a href$="[[builder.url]]"
+              title="Open in a new window"
+              target="_blank">
+            <iron-icon icon="open-in-new"></iron-icon>
+          </a>
+        </paper-tab>
+      </template>
+    </paper-tabs>
+    <iron-pages id="builderPages" selected="{{selectedBuilder}}" attr-for-selected="id">
+      <template is="dom-repeat" items="[[alert.extension.builders]]" as="builder">
+        <div id$="[[builder.name]]:[[builder.latest_failure]]" class="builder-page">
+          <div>Builds: [[builder.first_failure]]-[[builder.latest_failure]]</div>
+          <template is="dom-if" if="[[!hideWebKitTests]]">
+            <som-webkit-tests builder="[[builder]]" test-name="[[selectedTest]]" test-type="[[alert.extension.reason.step]]">
+            </som-webkit-tests>
+          </template>
+          <iframe src$="[[builder.url]]"></iframe>
+        </div>
+      </template>
+    </iron-pages>
+  </template>
+  <script src="som-examine.js"></script>
+</dom-module>

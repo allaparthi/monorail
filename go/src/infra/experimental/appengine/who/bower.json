@@ -1,0 +1,29 @@
+{
+  "name": "who",
+  "version": "0.0.0",
+  "moduleType": [
+    "es6"
+  ],
+  "license": "MIT",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ],
+  "dependencies": {
+    "iron-behaviors": "PolymerElements/iron-behaviors#2.0",
+    "iron-icons": "^2.0.0",
+    "paper-input": "PolymerElements/paper-input#2.0",
+    "paper-item": "PolymerElements/paper-item#2.0",
+    "paper-tooltip": "PolymerElements/paper-tooltip#2.0",
+    "polymer-redux": "^1.0.4",
+    "polymer": "Polymer/polymer#^2.0.0",
+    "paper-elements": "PolymerElements/paper-elements#^1.0.7",
+    "app-route": "PolymerElements/app-route#^2.0.3"
+  },
+  "resolutions": {
+    "polymer": "^2.0.0"
+  }
+}

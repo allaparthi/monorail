@@ -1,0 +1,176 @@
+<link rel="import" href="../../bower_components/polymer/polymer-element.html">
+
+<link rel="import" href="../../bower_components/iron-ajax/iron-ajax.html">
+<link rel="import" href="../../bower_components/iron-collapse/iron-collapse.html">
+<link rel="import" href="../../bower_components/vaadin-grid/all-imports.html">
+<link rel="import" href="../../bower_components/paper-dialog/paper-dialog.html">
+<link rel="import" href="../../bower_components/paper-spinner/paper-spinner.html">
+<link rel="import" href="../../bower_components/paper-progress/paper-progress.html">
+<link rel="import" href="../../bower_components/google-signin/google-signin.html">
+<link rel="import" href="../../bower_components/google-signin/google-signin-aware.html">
+
+<link rel="import" href="../../elements/som-header-styles.html">
+<link rel="import" href="../../elements/som-input-styles.html">
+
+<link rel="import" href="./som-edit-expectation-form.html">
+
+<dom-module id="som-test-expectations">
+  <template>
+    <style include="som-header-styles som-input-styles">
+      #main {
+        display: flex;
+        flex-grow: 1;
+        flex-direction: column;
+      }
+      vaadin-grid {
+        height: 90vh;
+
+        --vaadin-grid-header-cell: {
+          font-size: 10pt;
+          padding: 2pt;
+        };
+        --vaadin-grid-body-cell: {
+          font-size: 10pt;
+        };
+        --vaadin-grid-body-row-hover-cell: {
+          background-color: var(--paper-grey-200);
+        };
+      }
+      .details {
+        padding: 10px;
+        margin: 10px;
+        display: flex;
+        justify-content: space-around;
+        align-items: center;
+        box-shadow: 0 2px 2px 0 rgba(0, 0, 0, 0.14);
+        font-size: 20px;
+      }
+      .test-name-cell {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-family: monospace;
+        font-size: 9pt;
+      }
+      paper-dialog {
+        padding: 0 2em 0 2em;
+        max-width: 800px;
+      }
+      #changeListStatusDialog,
+      #changeListDialog {
+        padding: 1em;
+      }
+      .error-message {
+        font-style: italic;
+        overflow: auto;
+        margin: 1em;
+        color: red;
+      }
+      .status-message {
+        font-style: italic;
+        text-align: center;
+        margin: 1em;
+      }
+      paper-progress {
+        width: inherit;
+      }
+      google-signin {
+        max-width: 120px;
+      }
+    </style>
+    <google-signin-aware
+        scopes="https://www.googleapis.com/auth/gerritcodereview"
+        client-id="[[clientId]]"
+        on-google-signin-aware-success="handleSignin">
+    </google-signin-aware>
+    <div hidden="[[signedIn]]">You must be also be signed in with web client OAuth to edit expectations.</div>
+    <google-signin id="signIn" signed-in="{{signedIn}}"
+        client-id="[[clientId]]">
+    </google-signin>
+    <iron-ajax
+        id="testExpectationsAjax"
+        url="/api/v1/testexpectations"
+        handle-as="json"
+        last-error="{{_testExpectationsJsonError}}"
+        last-response="{{_testExpectationsJson}}"
+        debounce-duration="300"></iron-ajax>
+    <paper-dialog id="editDialog" modal>
+      <som-edit-expectation-form id="editExpectationForm" on-create-change-cl="_onCreateChangeCL" on-cancel-change-cl="_onCancelChangeCL"></som-edit-expectation-form>
+    </paper-dialog>
+    <paper-dialog id="changeListStatusDialog" modal>
+       Creating changelist:
+       <br>
+       <div class="error-message">[[_errorMessage]]</div>
+       <div class="status-message">[[_statusMessage]]</div>
+       <paper-progress id="progress" indeterminate></paper-progress>
+       <button dialog-dismiss>Cancel</button>
+    </paper-dialog>
+    <paper-dialog id="changeListDialog" modal>
+       Change list is here: <a href$="https://chromium-review.googlesource.com/q/[[_changeListId]]" target="_blank">[[_changeListId]]</a>
+       <button dialog-dismiss>Ok</button>
+    </paper-dialog>
+    <div id="main">
+      <vaadin-grid id="grid" items="[[_testExpectationsJson]]" on-active-item-changed="_onActiveItemChanged">
+        <vaadin-grid-column width="100px">
+          <template class="header">
+            <vaadin-grid-sorter path="FileName">Expectations File</vaadin-grid-sorter>
+            <vaadin-grid-filter aria-label="File Name" path="FileName" value="[[_filterFileName]]">
+              <input placeholder="Filter" value="{{_filterFileName::input}}" focus-target>
+            </vaadin-grid-filter>
+          </template>
+          <template><a target="_blank" href="https://chromium.googlesource.com/chromium/src/+/master/[[item.FileName]]#[[item.LineNumber]]">[[_shortFileName(item.FileName)]]</a></template>
+        </vaadin-grid-column>
+        <vaadin-grid-column width="400px" flex>
+          <template class="header">
+            <vaadin-grid-sorter path="TestName">Test Name</vaadin-grid-sorter>
+            <vaadin-grid-filter aria-label="Test Name" path="TestName" value="[[_filterTestName]]">
+              <input placeholder="Filter" value="{{_filterTestName::input}}" focus-target>
+            </vaadin-grid-filter>
+          </template>
+          <template>
+            <div class="test-name-cell">
+            <a target="_blank" title="[[item.TestName]]" href="https://chromium.googlesource.com/chromium/src/+/master/third_party/blink/web_tests/[[item.TestName]]">[[item.TestName]]</a>
+            </div>
+          </template>
+        </vaadin-grid-column>
+        <vaadin-grid-column flex>
+          <template class="header">
+            <vaadin-grid-sorter path="Expectations">Expected</vaadin-grid-sorter>
+            <vaadin-grid-filter aria-label="Expected Results" path="Expectations" value="[[_filterExpectations]]">
+              <input placeholder="Filter" value="{{_filterExpectations::input}}" focus-target>
+            </vaadin-grid-filter>
+          </template>
+          <template>[[item.Expectations]]</template>
+        </vaadin-grid-column>
+        <vaadin-grid-column flex>
+          <template class="header">
+            <vaadin-grid-sorter path="Modifiers">Modifiers</vaadin-grid-sorter>
+            <vaadin-grid-filter aria-label="Modifiers" path="Modifiers" value="[[_filterModifiers]]">
+              <input placeholder="Filter" value="{{_filterModifiers::input}}" focus-target>
+            </vaadin-grid-filter>
+          </template>
+          <template>[[item.Modifiers]]</template>
+        </vaadin-grid-column>
+        <vaadin-grid-column flex>
+          <template class="header">
+            <vaadin-grid-sorter path="Bugs">Bugs</vaadin-grid-sorter>
+            <vaadin-grid-filter aria-label="Bugs" path="Bugs" value="[[_filterBugs]]">
+              <input placeholder="Filter" value="{{_filterBugs::input}}" focus-target>
+            </vaadin-grid-filter>
+          </template>
+          <template>
+            <template is="dom-repeat" items="[[item.Bugs]]" as="bug">
+              <a target="_blank" href="http://[[bug]]">[[bug]]</a>
+           </template>
+         </template>
+        </vaadin-grid-column>
+        <vaadin-grid-column>
+          <template class="header"></template>
+          <template>
+            <button on-tap="_onStartEdit" value="[[item.TestName]]">Edit</button>
+          </template>
+        </vaadin-grid-column>
+      </vaadin-grid>
+    </div>
+  </template>
+  <script src="som-test-expectations.js"></script>
+</dom-module>

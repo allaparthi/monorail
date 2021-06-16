@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<script src="/bower_components/webcomponentsjs/webcomponents-loader.js"></script>
+<script src="/bower_components/web-component-tester/browser.js"></script>
+<link rel="import" href="/bower_components/iron-test-helpers/iron-test-helpers.html">
+<link rel="import" href="/elements/som-alert-view/som-alert-view.html">
+<test-fixture id="basic">
+  <template>
+    <som-alert-view></som-alert-view>
+  </template>
+</test-fixture>
+<script>
+(function() {
+  'use strict';
+  var element;
+  var server;
+  var responseHeaders = {
+      json: {'Content-Type': 'application/json'},
+      text: {'Content-Type': 'text/html'},
+  };
+
+  setup(function() {
+    element = fixture('basic');
+    sinon.stub(window, 'fetch');
+  });
+
+  teardown(function() {
+    window.fetch.restore();
+  });
+
+  suite('basic tests', function() {
+    test('alerts not found', function(done) {
+      let tree = 'notfound';
+      let groups = [tree];
+
+      let res = new window.Response(null, {
+        status: 404,
+        headers: {
+          'Content-type': 'application/json',
+        }
+      });
+
+      window.fetch.returns(Promise.resolve(res));
+      window.fetch.returns(Promise.resolve(res));
+      element._updateAlerts(groups);
+
+      assert.isTrue(window.fetch.calledOnce);
+
+      flush(function() {
+        assert.notEqual(element._fetchAlertsError, '');
+        expect(element.$.fetchAlertsError).be.visible;
+        done();
+      });
+    });
+  });
+
+  suite('alert streams', function() {
+    var clock;
+
+    setup(function() {
+      clock = sinon.useFakeTimers();
+    });
+
+    test('merge multiple alert streams', function() {
+      let alertsData = {
+        test: [
+          {extension: { builders: [{name: 'a'}], reasons: [ {step: 'a'} ]},
+            key: 'test key' },
+        ],
+        other: [
+          {extension: { builders: [{name: 'blahblah'}], reasons: [ {step: 'reasons'} ]} },
+        ],
+      };
+      let alertsResolvedData = {};
+
+      let sortedAlerts = element._computeAlerts({
+        base: alertsData
+      }, {
+        base: alertsResolvedData
+      }, {
+        'test key': {
+          snoozeTime: Date.now() + 1000000,
+        }
+      });
+
+      assert.equal(2, sortedAlerts.length);
+      assert.equal('blahblah', sortedAlerts[0].extension.builders[0].name);
+      // a is snoozed, goes to the bottom.
+      assert.equal('a', sortedAlerts[1].extension.builders[0].name);
+    });
+
+    test('merge multiple alert streams with one null', function() {
+      let alertsData = {
+        test: [
+          {extension: { builders: [{name: 'a'}], reasons: [ {step: 'a'} ]},
+            key: 'test key' },
+        ],
+        other: null
+      };
+      let alertsResolvedData = {};
+
+      let sortedAlerts = element._computeAlerts({
+        base: alertsData
+      }, {
+        base: alertsResolvedData
+      }, {
+        'test key': {
+          snoozeTime: Date.now() + 1000000,
+        }
+      });
+
+      assert.equal(1, sortedAlerts.length);
+      assert.equal('a', sortedAlerts[0].extension.builders[0].name);
+    });
+
+    test('ignores requests sent from stale trees', function(done) {
+      let oldRes = new window.Response(
+        '{"alerts": [{"key": "oldtreealert"}]}', {
+        status: 200,
+        headers: {
+          'Content-type': 'application/json',
+        }
+      });
+      let resolveOldPromise;
+      let oldPromise = new Promise((resolve, reject) => {
+        resolveOldPromise = resolve;
+      });
+
+      let newRes = new window.Response(
+        '{"alerts": [{"key": "newtreealert"}]}', {
+        status: 200,
+        headers: {
+          'Content-type': 'application/json',
+        }
+      });
+      let resolveNewPromise;
+      let newPromise = new Promise((resolve, reject) => {
+        resolveNewPromise = resolve;
+      });
+
+      let annotationPromise = new Promise((resolve, reject) => {});
+
+      window.fetch.onCall(0).returns(annotationPromise);
+      window.fetch.onCall(1).returns(oldPromise);
+      window.fetch.onCall(2).returns(annotationPromise);
+      window.fetch.onCall(3).returns(newPromise);
+
+      element.tree = {'name': 'chrome'};
+      assert.deepEqual(element._alertStreams, ['chrome']);
+      assert.equal(2, window.fetch.callCount);
+
+      element.tree = {'name': 'newtree'};
+      assert.deepEqual(element._alertStreams, ['newtree']);
+      assert.equal(4, window.fetch.callCount);
+
+      resolveNewPromise(newRes);
+      let expectedAlerts = {
+        'newtree': [{'key': 'newtreealert', 'resolved': false}]
+      };
+      flush(() => {
+        assert.deepEqual(element._alertsData, expectedAlerts);
+
+        resolveOldPromise(oldRes);
+        flush(() => {
+          assert.deepEqual(element._alertsData, expectedAlerts);
+          done();
+        });
+      });
+    });
+
+    test('sort works correctly', function() {
+      let alertsData = {
+        test: [
+          {extension: { builders: [{name: 'a'}, {name: 'b'}, {name: 'z'}], reasons: [ {step: 'a'} ]},
+            title: 'a'},
+          {extension: { builders: [{name: 'c'}], reasons: [ {step: 'a'} ]},
+            title: 'b'},
+          {extension: { builders: [{name: 'd'}], reasons: [ {step: 'c'} ]}, title: 'd' },
+          {extension: { builders: [{name: 'e'}], reasons: [ {step: 'd'} ]}, title: 'e' },
+          {extension: { builders: [{name: 'f'}], reasons: [ {step: 'b'} ]},
+            key: 'hello', title: 'd'},
+          {extension: { builders: [{name: 'g'}], reasons: [ {step: 'a'} ]},
+            key: 'test', title: 'c'},
+          {extension: { builders: [{name: 'h'}], reasons: [ {step: 'a'} ], suspected_cls: [{revision: '1'}]},
+           title: 'h'},
+          {extension: { builders: [{name: 'i'}], reasons: [ {step: 'a'} ], suspected_cls: [{revision: 'rev2', reverting_cl_url: 'revert_url'}]},
+           title: 'i'},
+          {extension: { builders: [{name: 'j'}], reasons: [ {step: 'a'} ], has_findings: true},
+           title: 'j'},
+        ]
+      };
+      let alertsResolvedData = {};
+
+      let sortedAlerts = element._computeAlerts({
+        base: alertsData
+      }, {
+        base: alertsResolvedData
+      }, {
+        'test': {
+          snoozeTime: Date.now() + 1000000,
+        },
+        'hello': {
+          bugs: ['test'],
+        },
+      });
+
+
+      let names = sortedAlerts.map((alr) => {
+        return alr.extension.builders[0].name;
+      })
+      assert.deepEqual(names, ['i', 'h', 'j', 'a', 'c', 'd', 'e', 'f', 'g']);
+      // b has a bug so it goes between c/d (no annotations) and a (snoozed).
+      // a is snoozed, goes to the bottom.
+    });
+  });
+
+  suite('refresh', function() {
+    var refreshStub;
+    var clock;
+
+    setup(function() {
+      refreshStub = sinon.stub(element, 'refresh');
+      clock = sinon.useFakeTimers();
+    });
+
+    test('refreshes after a period', function(done) {
+      element.created();
+      clock.tick(60 * 1000);
+      flush(function() {
+        sinon.assert.calledOnce(refreshStub);
+        done();
+      });
+    });
+  });
+
+  suite('alert actions', function() {
+    test('_resolveAlerts sends a request', function() {
+      window.fetch.returns(Promise.resolve());
+      element.tree = {'name': 'test'};
+
+      element._resolveAlerts([{'key': 'hello'}]);
+
+      assert.isTrue(window.fetch.calledThrice);
+
+      let call = window.fetch.getCall(2);
+
+      assert.equal('/api/v1/resolve/test', call.args[0]);
+    });
+  });
+
+  suite('filter', function() {
+    test('_filterAlerts with pattern', function(done) {
+      let pattern = 'hello';
+      let alerts = [
+        {
+          'key': 'alert1.hello',
+        },
+        {
+          'key': 'alert2',
+          'body': 'hello is like jello',
+        },
+        {
+          'key': 'alert3',
+          'title': 'not here',
+          'body': 'or here',
+        },
+        {
+          'key': 'alert4',
+          'title': 'hello world',
+        },
+        {
+          'key': 'alert5',
+          'title': 'Hello, World!',
+        },
+        {
+          'key': 'alert6',
+          'title': 'might be here',
+          'body': 'or here',
+        },
+      ];
+      const annotations = {
+        'alert6': {
+          bugs: [
+            {id:'123', projectId:'chromium'},
+            {id:'234', projectId:'fuchsia'},
+          ],
+          bug_data: {
+            '123': {
+              summary: 'hello'
+            }
+          }
+        }
+      };
+      let filteredAlerts = element._filterAlerts(alerts, annotations, pattern);
+
+      flush(function() {
+        assert.equal(filteredAlerts.length, 5);
+        assert.equal(filteredAlerts[0].key, "alert1.hello");
+        assert.equal(filteredAlerts[1].key, "alert2");
+        assert.equal(filteredAlerts[2].key, "alert4");
+        assert.equal(filteredAlerts[3].key, "alert5");
+        assert.equal(filteredAlerts[4].key, "alert6");
+        done();
+      });
+    });
+
+    test('_filterAlerts without pattern', function(done) {
+      let pattern = '';
+      let alerts = [
+        {
+          'key': 'alert1.hello',
+        },
+        {
+          'key': 'alert2',
+          'body': 'hello is like jello',
+        },
+        {
+          'key': 'alert3',
+          'title': 'not here',
+          'body': 'or here',
+        },
+        {
+          'key': 'alert4',
+          'title': 'might be here',
+          'body': 'or here',
+        },
+      ];
+      const annotations = {
+        'alert4': {
+          bugs: [
+            { id: '123', projectId: 'chromium' },
+            { id: '234', projectId: 'fuchsia' },
+          ],
+          bug_data: {
+            '123': {
+              summary: 'hello'
+            }
+          }
+        }
+      };
+      let filteredAlerts = element._filterAlerts(alerts, annotations, pattern);
+
+      flush(function() {
+        assert.equal(filteredAlerts.length, 4);
+        assert.equal(filteredAlerts[0].key, "alert1.hello");
+        assert.equal(filteredAlerts[1].key, "alert2");
+        assert.equal(filteredAlerts[2].key, "alert3");
+        assert.equal(filteredAlerts[3].key, "alert4");
+        done();
+      });
+    });
+
+    let basicAlert = {
+      'key': 'a basic key',
+      'title': 'this is a title',
+      'body': 'alert body',
+      'links': [
+        {
+          'title': 'alert link1',
+          'href': 'http://locat',
+        },
+        {
+          'title': 'alert link2',
+          'href': 'http://locat2',
+        },
+      ],
+    };
+
+    const basicAnnotation = {
+      'a basic key': {
+        bugs: [{id: '123', projectId: 'chromium'}],
+        bug_data: {
+          '123': {
+            id: '123',
+            projectId: 'chromium',
+            summary: 'a summary',
+          },
+        },
+      },
+    };
+
+    let buildExtension = {
+      'builders': [
+        {
+          'name': 'a fine builder',
+        },
+      ],
+      'reason': {
+        'name': 'a good reason',
+        'test_names': [
+          'one test',
+          'two test',
+        ],
+      },
+    };
+
+    test('_searchAlert no match', function(done) {
+      let pattern = 'hello';
+      let match = element._searchAlert(basicAlert, pattern);
+
+      flush(function() {
+        assert.isFalse(match);
+        done();
+      });
+    });
+
+    test('_searchAlert key', function(done) {
+      let pattern = 'basic key';
+      let match = element._searchAlert(basicAlert, pattern);
+
+      flush(function() {
+        assert.isTrue(match);
+        done();
+      });
+    });
+
+    test('_searchAlert title', function(done) {
+      let pattern = 'is a title';
+      let match = element._searchAlert(basicAlert, pattern);
+
+      flush(function() {
+        assert.isTrue(match);
+        done();
+      });
+    });
+
+    test('_searchAlert links', function(done) {
+      let pattern = 'alert link2';
+      let match = element._searchAlert(basicAlert, pattern);
+
+      flush(function() {
+        assert.isTrue(match);
+        done();
+      });
+    });
+
+    test('_searchAlert group', function(done) {
+      let pattern = 'alert link2';
+      let groupAlert = {
+        'grouped': true,
+        'alerts': [{'key': 'fakeAlert'}, basicAlert],
+      };
+      let match = element._searchAlert(groupAlert, pattern);
+
+      flush(function() {
+        assert.isTrue(match);
+        done();
+      });
+    });
+
+    test('_searchBugs no match', function(done) {
+      let pattern = 'hello';
+      let match = element._searchBugs(element.computeBugs(element.computeAnnotation(basicAnnotation, basicAlert)), pattern);
+
+      flush(function() {
+        assert.isFalse(match);
+        done();
+      });
+    });
+
+    test('_searchBugs id', function(done) {
+      let pattern = /23/;
+      let match = element._searchBugs(element.computeBugs(element.computeAnnotation(basicAnnotation, basicAlert)), pattern);
+
+      flush(function() {
+        assert.isTrue(match);
+        done();
+      });
+    });
+
+    test('_searchBugs summary', function(done) {
+      let pattern = /summa/;
+      let match = element._searchBugs(element.computeBugs(element.computeAnnotation(basicAnnotation, basicAlert)), pattern);
+
+      flush(function() {
+        assert.isTrue(match);
+        done();
+      });
+    });
+
+    test('_searchNotes', function(done) {
+      let pattern = 'star';
+      let notes = [
+        'blah',
+        'blah blah',
+        'rocketstar',
+      ];
+      let match = element._searchNotes(notes, pattern);
+
+      flush(function() {
+        assert.isTrue(match);
+        done();
+      });
+    });
+
+    test('_searchBuildExtension no match', function(done) {
+      let pattern = 'cros note3';
+      let match = element._searchBuildExtension(buildExtension, pattern);
+
+      flush(function() {
+        assert.isFalse(match);
+        done();
+      });
+    });
+
+    test('_searchBuildExtension test names', function(done) {
+      let pattern = 'two test';
+      let match = element._searchBuildExtension(buildExtension, pattern);
+
+      flush(function() {
+        assert.isTrue(match);
+        done();
+      });
+    });
+
+    test('_filterByPattern capital', function(done) {
+      let pattern = 'BIG';
+      let alerts = [
+        {'key': 'big up'},
+        {'key': 'small'},
+        {'key': 'BIGGER'},
+        {'key': 'quite small'},
+        {'key': 'quite big'},
+      ];
+      const annotations = {
+        'quite small': {
+          bugs: [{id:'123', projectId:'monorail'}],
+          bug_data: {
+            '123': {
+              summary: 'it might be big',
+            },
+          },
+        },
+        'quite big': {
+          bugs: [{ id: '123', projectId: 'fuchsia'}],
+          bug_data: {
+            '123': {
+              summary: 'it\'s actually BIG',
+            },
+          },
+        },
+      }
+      let filteredAlerts = element._filterByPattern(alerts, annotations, pattern);
+
+      flush(function() {
+        assert.equal(filteredAlerts.length, 2);
+        assert.equal(filteredAlerts[0].key, "BIGGER");
+        assert.equal(filteredAlerts[1].key, "quite big");
+        done();
+      });
+    });
+
+    test('_filterByPattern insenstive', function(done) {
+      let pattern = 'big';
+      let alerts = [
+        {'key': 'big up'},
+        {'key': 'small'},
+        {'key': 'BIGGER'},
+        {'key': 'not small'},
+      ];
+      const annotations = {
+        'not small': {
+          bugs: [{ id: '123', projectId: 'chromium'}],
+          bug_data: {
+            '123': {
+              summary: 'it\'s actually big',
+            },
+          },
+        },
+      }
+      let filteredAlerts = element._filterByPattern(alerts, annotations, pattern);
+
+      flush(function() {
+        assert.equal(filteredAlerts.length, 3);
+        assert.equal(filteredAlerts[0].key, "big up");
+        assert.equal(filteredAlerts[1].key, "BIGGER");
+        assert.equal(filteredAlerts[2].key, "not small");
+        done();
+      });
+    });
+  });
+
+  suite('merge reason', function() {
+    let group = {};
+    let alert = {};
+
+    test('trivial', function() {
+      let result = element._mergeReason(group, alert);
+      assert.deepEqual(result, undefined);
+    });
+
+    test('empty group', function() {
+      let reason = {
+        test_names: ['test'],
+      };
+      alert.reason = reason;
+
+      let result = element._mergeReason(group, alert);
+
+      assert.deepEqual(result, reason);
+    });
+
+    test('group has reason', function() {
+      let reason = {
+        test_names: ['test'],
+      };
+      group.reason = reason;
+      alert.reason = reason;
+
+      let result = element._mergeReason(group, alert);
+
+      assert.deepEqual(result, reason);
+    });
+
+    test('group has different reason', function(done) {
+      let reason = {
+        test_names: ['test'],
+      };
+      let otherReason = {
+        test_names: ['otherTest', 'test2'],
+      };
+      group.reason = reason;
+      alert.reason = otherReason;
+
+      try {
+        let result = element._mergeReason(group, alert);
+      } catch (e) { done(); }
+    });
+  })
+
+  suite('merge regression ranges', function() {
+    let group = {};
+    let alert = {};
+    test('trivial', function() {
+      element._mergeRegressionRanges(group, alert);
+      assert.deepEqual(group, {});
+      assert.deepEqual(alert, {});
+
+      alert.regression_ranges = 'foobar';
+      element._mergeRegressionRanges(group, alert);
+      assert.deepEqual(group, alert);
+      assert.deepEqual(alert, alert);
+    });
+
+    test('single repo', function() {
+      group.regression_ranges = [
+        {
+          repo: 'foo',
+          positions: ['refs/heads/master@{#1}', 'refs/heads/master@{#4}'],
+        },
+      ];
+      alert.regression_ranges = [
+        {
+          repo: 'foo',
+          positions: ['refs/heads/master@{#2}', 'refs/heads/master@{#4}'],
+        },
+      ];
+      element._mergeRegressionRanges(group, alert);
+      assert.deepEqual(group.regression_ranges, [{
+          repo: 'foo',
+          positions: ['refs/heads/master@{#2}', 'refs/heads/master@{#4}'],
+        }]
+      );
+      assert.deepEqual(alert, alert);
+    });
+
+    test('multiple repo', function() {
+      // Test that multiple different repos are merged. 'baz' is present in the
+      // group but not the alert; it should still stay in the regression ranges.
+      group.regression_ranges = [
+        {
+          repo: 'foo',
+          positions: ['refs/heads/master@{#1}', 'refs/heads/master@{#4}'],
+        },
+        {
+          repo: 'bar',
+          positions: ['refs/heads/master@{#1}', 'refs/heads/master@{#4}'],
+        },
+        {
+          repo: 'baz',
+          positions: ['refs/heads/master@{#1}', 'refs/heads/master@{#4}'],
+        },
+      ];
+      alert.regression_ranges = [
+        {
+          repo: 'foo',
+          positions: ['refs/heads/master@{#2}', 'refs/heads/master@{#4}'],
+        },
+        {
+          repo: 'bar',
+          positions: ['refs/heads/master@{#2}', 'refs/heads/master@{#4}'],
+        },
+      ];
+      element._mergeRegressionRanges(group, alert);
+      assert.deepEqual(group.regression_ranges, [
+        {
+          repo: 'foo',
+          positions: ['refs/heads/master@{#2}', 'refs/heads/master@{#4}'],
+        },
+        {
+          repo: 'bar',
+          positions: ['refs/heads/master@{#2}', 'refs/heads/master@{#4}'],
+        },
+        {
+          repo: 'baz',
+          positions: ['refs/heads/master@{#1}', 'refs/heads/master@{#4}'],
+        },
+      ]
+      );
+      assert.deepEqual(alert, alert);
+    });
+
+    test('merge two ranges', function() {
+      let toS = (cps) => {
+        return {
+          positions: cps.map((num) => {
+            return 'refs/heads/master@{#' + num + '}'
+          })
+        };
+      };
+      let rev = (val) => {
+        return val.positions.map(element._parseCommitPosition);
+      };
+      // Undefined cases; if we ever return undefined, that means our regression
+      // ranges are in a weird state, as defined in the first two cases below.
+      // That means we are in a weird state where our regression ranges say that
+      // there's no possible CL causing this failure. Right now we're going to
+      // just fail, but we should probably signal this to the user more
+      // explicitly in the future.
+      let badRegRange = element._mergeRegressionRange(toS([1, 2]), toS([3, 4]));
+      assert.equal(
+          badRegRange.error,
+          "Invalid regression range");
+
+      badRegRange = element._mergeRegressionRange(toS([3, 4]), toS([1, 2]));
+      assert.equal(
+          badRegRange.error,
+          "Invalid regression range");
+
+      badRegRange = element._mergeRegressionRange(toS([3, 4]), undefined);
+      assert.equal(
+          badRegRange,
+          undefined);
+
+      assert.deepEqual(
+          rev(element._mergeRegressionRange(toS([1, 3]), toS([2, 4]))),
+          [2,3]);
+      assert.deepEqual(
+          rev(element._mergeRegressionRange(toS([1, 4]), toS([2, 3]))),
+          [2,3]);
+      assert.deepEqual(
+          rev(element._mergeRegressionRange(toS([2, 4]), toS([1, 3]))),
+          [2,3]);
+    })
+  });
+
+
+})();
+</script>

@@ -1,0 +1,23 @@
+# Managed by cloudbuildhelper.
+#
+# All comments or unrecognized fields will be overwritten. To comment an entry
+# use "comment" field.
+#
+# To update digests of all entries:
+#   $ cloudbuildhelper pins-update <path-to-this-file>
+#
+# To add an entry (or update an existing one):
+#   $ cloudbuildhelper pins-add <path-to-this-file> <image>[:<tag>]
+#
+# To remove an entry just delete it from the file.
+#
+# To prevent an entry from being updated by pins-update, add "freeze" field with
+# an explanation why it is frozen.
+
+pins:
+- image: docker.io/library/ubuntu
+  tag: xenial
+  digest: sha256:db6697a61d5679b7ca69dbde3dad6be0d17064d5b6b0e9f7be8d456ebb337209
+- image: gcr.io/distroless/static
+  tag: latest
+  digest: sha256:c6d5981545ce1406d33e61434c61e9452dad93ecd8397c41e89036ef977a88f4

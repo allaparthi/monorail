@@ -1,0 +1,11 @@
+service: static
+runtime: go111
+
+handlers:
+- url: /static/bootstrap
+  static_dir: bootstrap
+  secure: always
+
+- url: /static/jquery
+  static_dir: jquery
+  secure: always

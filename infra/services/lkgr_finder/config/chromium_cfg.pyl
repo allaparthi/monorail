@@ -1,0 +1,21 @@
+{
+  'project': 'chromium',
+  'source_url': 'https://chromium.googlesource.com/chromium/src',
+  'buckets': {
+    'chromium/ci': {  # bucket alias: luci.chromium.ci
+      'builders': [
+        'Android arm Builder (dbg)',
+        'Android ASAN (dbg)',
+        'Linux Builder',
+        'Linux Builder (dbg)',
+        'Linux Builder (dbg)(32)',
+        'Mac Builder',
+        'Mac Builder (dbg)',
+        'Win Builder',
+        'Win Builder (dbg)',
+        'Win x64 Builder',
+        'Win x64 Builder (dbg)',
+      ],
+    },
+  },
+}

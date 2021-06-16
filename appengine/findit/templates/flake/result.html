@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
+  <title>Flake Analysis</title>
+  <script src="/ui/js/common.js"></script>
+  <script src="/bower_components/webcomponentsjs/webcomponents-lite.js"></script>
+  <link rel="import" href="/ui/elements/cats-app.html">
+  <link rel="import" href="/ui/elements/analysis/flake/flake-analysis-info.html">
+  <link rel="import" href="/ui/elements/analysis/flake/check-recent-flakiness.html">
+  <style type="text/css">
+    /*Analysis running statuses.*/
+
+    .completed {
+      color: #ffffff;
+      background-color: #8fdf5f;
+      border-color: #4f8530;
+    }
+
+    .error {
+      color: #ffffff;
+      background-color: #e98080;
+      border-color: #a77272;
+    }
+
+    .running {
+      color: #666666;
+      background-color: #fffc6c;
+      border-color: #c5c56d;
+    }
+
+    /*Flake trend.*/
+
+    .container {
+      box-sizing: border-box;
+      width: 600px;
+      height: 300px;
+      padding: 20px 20px 20px 20px;
+      border: 1px solid #ddd;
+      background: #fff;
+      background: linear-gradient(#f6f6f6 0, #fff 50px);
+      background: -o-linear-gradient(#f6f6f6 0, #fff 50px);
+      background: -ms-linear-gradient(#f6f6f6 0, #fff 50px);
+      background: -moz-linear-gradient(#f6f6f6 0, #fff 50px);
+      background: -webkit-linear-gradient(#f6f6f6 0, #fff 50px);
+      box-shadow: 0 3px 10px rgba(0, 0, 0, 0.15);
+      -o-box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+      -ms-box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+      -moz-box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+      -webkit-box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    .data-point-detail {
+      position: absolute;
+      display: none;
+      border: 1px solid #fdd;
+      padding: 2px;
+      background-color: #fee;
+      opacity: 0.80;
+    }
+
+    .flake-trend {
+      width: 100%;
+      height: 100%;
+      font-size: 16px;
+      line-height: 1.2em;
+    }
+
+    /*Triage.*/
+
+    .triage-table,
+    .triage-header,
+    .triage-cell {
+      border: 1px solid;
+      border-collapse: collapse;
+    }
+
+    .triage-header,
+    .triage-cell {
+      padding: 5px;
+    }
+
+    .triage-header {
+      text-align: center;
+    }
+
+    .triage-cell {
+      text-align: left;
+    }
+
+    #representative-swarming-task {
+      color: green;
+    }
+
+    #swarming-task {
+      margin-right: 5px;
+    }
+
+    flake-analysis-info {
+      outline: 1px solid #4285f4;
+      width: 45%;
+      min-width: 400px;
+      max-width: 600px;
+      float: left;
+    }
+
+    check-recent-flakiness {
+      outline: 1px solid #4285f4;
+      min-width: 350px;
+      max-width: 450px;
+      float: right;
+    }
+
+    #graph {
+      clear: both;
+      width: 95%;
+      margin: 0 auto;
+    }
+
+    #graph .container {
+      width: 100%;
+    }
+
+    #graph h3 {
+      text-align: left;
+      padding-top: 20px;
+      margin-bottom: -10px;
+    }
+
+    #triage_flake {
+      margin-top: 50px;
+    }
+
+    #timestamps {
+      color: gray;
+      font-style: italic;
+    }
+  </style>
+  <link rel="stylesheet" type="text/css" href="https://ajax.googleapis.com/ajax/libs/jqueryui/1.12.1/themes/smoothness/jquery-ui.css">
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+  <script src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.12.1/jquery-ui.min.js"></script>
+  <script src="/js/flot/jquery.flot.min.js"></script>
+  <script src="/js/flot/jquery.flot.resize.min.js"></script>
+  <script src="/js/flot/jquery.flot.symbol.min.js"></script>
+  <script type="text/javascript">
+    var heightRatio = 1/3;
+    $(SizeGraph);
+    $(window).resize(SizeGraph);
+
+    function SizeGraph() {
+      // Setup graph to have a good width/height ratio
+      var graph = $("#graph .container");
+      var width = graph.width();
+      graph.css('height', width * heightRatio);
+    }
+
+    var findit = {};
+    findit.analysisKey = '{{ key }}';
+    findit.masterName = '{{ master_name }}';
+    findit.builderName = '{{ builder_name }}';
+    findit.regressedBuildNumber = {{ suspected_flake.build_number or - 1 }};
+    findit.passRates = {{ pass_rates | tojson | safe }};
+    findit.culpritGitHash = '{{ culprit.git_hash }}';
+    findit.xsrfToken = '{{ xsrf_token }}';
+
+    function GetDataPointByCommitPosition(commit_position) {
+      var dataPoint = null;
+      $.each(findit.passRates, function (index, value) {
+        if (value.commit_position == commit_position) {
+          dataPoint = value;
+          return false;
+        }
+      });
+      return dataPoint;
+    }
+
+    function DrawFlakeTrend() {
+      if (findit.passRates.length == 0) {
+        $('#flake-data').text('No data available yet.');
+        return;
+      }
+
+      var all_data = [];
+      var not_run_data = [];
+      var build_run_data = [];
+      var revision_run_data = [];
+      $.each(findit.passRates, function (index, value) {
+        // Convert pass rate from [0, 1] to a percentage.
+        var pass_rate = (value.pass_rate * 100).toFixed(0);
+
+        all_data.push([value.commit_position, Math.abs(pass_rate)]);
+
+        if (pass_rate < 0) {
+          // -1 means that the test doesn't exist yet.
+          // We consider that a 100% pass rate.
+          not_run_data.push([value.commit_position, 100]);
+        } else if (value.try_job_url == null) {
+          build_run_data.push([value.commit_position, pass_rate]);
+        } else {
+          revision_run_data.push([value.commit_position, pass_rate]);
+        }
+      });
+
+      var data_series = [];
+      var next_sery_index = 0;
+
+      data_series.push({
+        data: all_data,
+        points: {
+          show: false,
+        },
+        lines: {
+          show: true,
+        },
+      });
+      next_sery_index += 1;
+
+      var build_data_sery_index = 0;
+      var revision_data_sery_index = 0;
+
+      if (not_run_data.length > 0) {
+        data_series.push({
+          data: not_run_data,
+          color: "gray",
+          points: {
+            symbol: "cross",
+          },
+          lines: {
+            show: false,
+          },
+          label: "Non-existent",
+        });
+        next_sery_index += 1;
+      }
+
+      if (build_run_data.length > 0) {
+        data_series.push({
+          data: build_run_data,
+          points: {
+            symbol: "circle",
+          },
+          color: "blue",
+          lines: {
+            show: false,
+          },
+          label: "Cached Binary",
+        });
+        build_data_sery_index = next_sery_index;
+        next_sery_index += 1;
+      }
+
+      if (revision_run_data.length > 0) {
+        data_series.push({
+          data: revision_run_data,
+          points: {
+            symbol: "circle",
+          },
+          lines: {
+            show: false,
+          },
+          color: "green",
+          label: "Newly-compiled Binary",
+        });
+        revision_data_sery_index = next_sery_index;
+        next_sery_index += 1;
+      }
+
+      var options = {
+        series: {
+          lines: {
+            show: true,
+          },
+          points: {
+            show: true,
+            radius: 3,
+          },
+          highlightColor: 'red',
+        },
+        grid: {
+          hoverable: true,
+          clickable: true,
+          borderWidth: 1,
+          autoHighlight: false,
+        },
+        xaxis:
+          {
+            tickDecimals: 0,
+          },
+        yaxis: {
+          min: 0,
+          max: 100,
+          tickFormatter: function (val, axis) {
+            return val + '%';
+          },
+        },
+      };
+
+      var plot = $.plot($("#flake-data"), data_series, options);
+
+      $(".container").resizable({
+        maxWidth: 2000,
+        maxHeight: 1000,
+        minWidth: 500,
+        minHeight: 300
+      });
+
+      function showTooltipForDataPoint(item) {
+        var itemData = item.series.data[item.dataIndex];
+        var thisBuildCommitPosition = itemData[0];
+        var passRate = itemData[1];
+        var dataPoint = GetDataPointByCommitPosition(thisBuildCommitPosition);
+        var swarmingTaskIds = dataPoint.task_ids;
+        var buildNumber = dataPoint.build_number;
+        var thisBuildGitHash = dataPoint.git_hash;
+        var tryJobUrl = dataPoint.try_job_url;
+
+        $('#pass-rate').text(passRate);
+
+        $('#revision-link').attr('href', 'https://crrev.com/' + thisBuildCommitPosition);
+        $('#revision-link').text(thisBuildCommitPosition);
+
+        if (swarmingTaskIds) {
+          $('#swarming-tasks').empty();
+          $.each(swarmingTaskIds, function (index, value) {
+              var link = $('<a>', {
+                text: 'task' + (index + 1),
+                href: 'https://chromium-swarm.appspot.com/task?id=' + value,
+              }).appendTo('#swarming-tasks');
+            link.attr('id', 'swarming-task')
+
+            // TODO: flake analysis should figure out a representative task.
+            //if (index == swarmingTaskIds.length - 1) {
+            //  link.attr('id', 'representative-swarming-task');
+            //}
+          });
+          $('#swarming-task-container').show();
+        } else {
+          $('#swarming-task-container').hide();
+        }
+
+        var buildUrl = tryJobUrl;
+        if (buildNumber) {
+          buildUrl = 'https://luci-milo.appspot.com/buildbot/' + findit.masterName + '/' + findit.builderName + '/' + buildNumber;
+        }
+        if (buildUrl) {
+          $('#build-link').attr('href', buildUrl);
+          $('#build-container').show();
+        } else {
+          $('#build-container').hide();
+        }
+
+        $('#data-point-tooltip').css({ top: item.pageY + 5, left: item.pageX + 5 }).show();
+      }
+
+      var dataPointSelected = false;
+      $('#flake-data').on('plothover', function (event, pos, item) {
+        if (dataPointSelected)
+          return;  // A data point is selected due to a click.
+
+        if (item) {
+          showTooltipForDataPoint(item);
+        } else {
+          $('#data-point-tooltip').hide();
+        }
+      });
+      $('#flake-data').on('plotclick', function (event, pos, item) {
+        if (item) {
+          dataPointSelected = true;  // Set selected data point upon click.
+          showTooltipForDataPoint(item);
+        } else {
+          dataPointSelected = false;  // Unselect the data point.
+          $('#data-point-tooltip').hide();
+        }
+      });
+
+      if (revision_run_data.length == 0) {
+        $.each(build_run_data, function (index, value) {
+          var dataPoint = GetDataPointByCommitPosition(value[0]);
+          if (dataPoint != null && dataPoint.build_number == findit.regressedBuildNumber) {
+            plot.highlight(build_data_sery_index, index);
+          }
+        });
+      }
+
+      $.each(revision_run_data, function (index, value) {
+        var dataPoint = GetDataPointByCommitPosition(value[0]);
+        if (dataPoint != null && dataPoint.git_hash == findit.culpritGitHash) {
+          plot.highlight(revision_data_sery_index, index);
+        }
+      });
+    }
+
+    function handleLogin(httpStatus) {
+      if (httpStatus == 401 || xhr.status == 403) {
+        displayMessage(100);  // Permission.
+      } else {
+        displayMessage(null, 'Please refresh the page and try again.', 'Unknown Error');
+      }
+    }
+
+    function triageSuspectedFlake(triageResult) {
+      var parameters = {
+        'format': 'json',
+        'key': '{{ key }}',
+        'triage_result': triageResult,
+        'xsrf_token': findit.xsrfToken,
+      };
+      $.post('/p/chromium/flake-portal/analysis/triage', parameters, function (data) {
+        if (!data['success']) {
+          alert('Failed to update datastore. Please refresh and try again.');
+        } else {
+          $('#flake_result_triaged').text('Feedback has been recorded. Thank you!');
+        }
+      }).fail(function (xhr) {
+        handleLogin(xhr.status);
+      });
+    }
+
+    $(function () {
+      document.getElementById('app').userInfo = {{ (user_info or { }) | tojson | safe }};
+
+      DrawFlakeTrend();
+
+      $('input[name=triage-radio-button]').on('change', function () {
+        triageSuspectedFlake($(this).val());
+      });
+
+      $('.range-help-info').click(function () {
+        displayMessage(300); // Hint to re-analyze with a given range.
+      });
+    });
+  </script>
+</head>
+
+<body>
+  <cats-app id="app" components="Tools>Test>FindIt>Flakiness" page-header="Findit: analysis result for flake {{test_name}}">
+
+    <!-- Test and analysis info -->
+    <flake-analysis-info master-name="{{master_name}}"
+                         builder-name="{{builder_name}}"
+                         build-number="{{build_number}}"
+                         build-id="{{build_id}}"
+                         step-name="{{step_name}}"
+                         test-name="{{test_name}}"
+                         status="{{status}}"
+                         regression-range-upper="{{regression_range_upper or ''}}"
+                         regression-range-lower="{{regression_range_lower or ''}}"
+                         heuristic-analysis-results="{{suspected_culprits|tojson}}"
+                         culprit-url="{{culprit_url}}"
+                         culprit-revision="{{culprit_revision}}"
+                         culprit-confidence="{{culprit_confidence}}"
+                         bug-id="{{bug_id}}"
+                         error="{{error or ''}}">
+    </flake-analysis-info>
+
+    <!-- Check recent flakiness UI -->
+    {% if analysis_complete %}
+      {% if most_recent_flakiness.commit_position %}
+        <check-recent-flakiness last-analyzed-commit-position="{{most_recent_flakiness.commit_position}}"
+                                committed-days-ago="{{most_recent_flakiness.committed_days_ago}}"
+                                pass-rate="{{most_recent_flakiness.pass_rate}}"
+                                pass-count="{{most_recent_flakiness.pass_count}}"
+                                iterations="{{most_recent_flakiness.iterations}}"
+                                swarm-task="{{most_recent_flakiness.swarm_task}}"
+                                xsrf-token="{{xsrf_token}}"
+                                key="{{key}}"
+                                status="{{most_recent_flakiness.status}}"
+                                pipeline-status-path="{{most_recent_flakiness.pipeline_status_path}}"
+                                can-check-recent-flakiness="{{most_recent_flakiness.can_check_recent_flakiness}}">
+        </check-recent-flakiness>
+      {% else %}
+        <check-recent-flakiness last-analyzed-commit-position=""
+                                committed-days-ago=""
+                                pass-rate=""
+                                pass-count=""
+                                iterations=""
+                                swarm-task=""
+                                xsrf-token="{{xsrf_token}}"
+                                key="{{key}}"
+                                status="{{most_recent_flakiness.status}}"
+                                pipeline-status-path="{{most_recent_flakiness.pipeline_status_path}}"
+                                can-check-recent-flakiness="{{most_recent_flakiness.can_check_recent_flakiness}}">
+        </check-recent-flakiness>
+      {% endif %}
+    {% endif %}
+
+    <!-- Graph -->
+    <div id="graph">
+      <h3>Pass Rate by Commit</h3>
+      <br>
+      <div class="container">
+        <div id="flake-data" class="flake-trend"></div>
+      </div>
+      <div id="data-point-tooltip" class="data-point-detail">
+        <div>Pass Rate:
+          <span id="pass-rate"></span>%</div>
+        <div id="revision-container">Revision:
+          <a id="revision-link" target="_blank"></a>
+        </div>
+        <div id="swarming-task-container">
+          <span>Test Runs:</span>
+          <span id="swarming-tasks"></span>
+        </div>
+        <div id="build-container">Build:
+          <a id="build-link" target="_blank">link</a>
+        </div>
+        <div>(Click to pin the tooltip)</div>
+      </div>
+
+      <div id="timestamps">
+        {% if analysis_complete %}
+          Completed {{ ended_days_ago }} ago (total duration {{ duration }}).
+        {% else %}
+          Last update {{ last_updated }} ago.
+        {% endif %}
+      </div>
+
+    </div>
+
+    {% if show_debug_options %}
+      <!-- Diagnositic information -->
+      <p>
+        Pipeline:
+        {% if pipeline_status_path %}
+          <a href="{{ pipeline_status_path }}" target="_blank">pipeline status</a>
+        {% else %}
+          Pipeline was not started.
+        {% endif %}
+        Recent flakiness pipeline:
+        {% if most_recent_flakiness.pipeline_status_path %}
+          <a href="{{ most_recent_flakiness.pipeline_status_path }}" target="_blank">recent flakiness pipeline status</a>
+        {% else %}
+          No check recent flakiness pipeline started.
+        {% endif %}
+      </p>
+
+      <!-- Rerun analysis button -->
+      <form action="/p/chromium/flake-portal/analysis/analyze" method="post">
+        <input type="hidden" name="debug" value="1" />
+        <input type="hidden" name="rerun" value="1" />
+        <input type="hidden" name="key" value="{{key}}" />
+        <input type="hidden" name="xsrf_token" value="{{xsrf_token}}" />
+        <input type="submit" value="Rerun Analysis" />
+      </form>
+
+      <!-- Cancel analysis button -->
+      <form action="/p/chromium/flake-portal/analysis/analyze" method="post">
+        <input type="hidden" name="debug" value="1" />
+        <input type="hidden" name="cancel" value="1" />
+        <input type="hidden" name="key" value="{{key}}" />
+        <input type="hidden" name="xsrf_token" value="{{xsrf_token}}" />
+        <input type="submit" value="Cancel Analysis" />
+      </form>
+    {% endif %}
+
+    {% if show_admin_options %}
+      <div style="border: 1px solid black">
+        <!-- Rerun options -->
+        <h4>Rerun options</h4>
+        <!-- TODO(crbug.com/843837): Support manual regression range rerun in new pipelines. -->
+        <form action="" name="regression_range_rerun" method="post">
+          <div>
+            <input type="hidden" name="xsrf_token" value="{{ xsrf_token }}" />
+            <input type="hidden" name="key" value="{{ key }}" />
+            <table>
+              <tr>
+                <td>
+                  Analyze a commit position range (
+                  <a class="range-help-info" href="javascript:">?</a>):
+                </td>
+                <td>
+                  <input type="text" name="lower_bound_commit_position" placeholder="Lower bound" size="10"> </td>
+                <td>
+                  <input type="text" name="upper_bound_commit_position" placeholder="Upper bound" size="10"> </td>
+                <td>
+                  <input type="submit" value="Analyze">
+                </td>
+              </tr>
+            </table>
+          </div>
+        </form>
+      </div>
+
+      <br>
+      <br>
+      <div>
+        <b>Metadata:</b>
+        <br> {% if request_time %} Request time: {{ request_time }}
+        <br> {% endif %} {% if pending_time %} Pending time: {{ pending_time }}
+        <br> {% endif %} {% if show_debug_info and duration %} Duration: {{ duration }}
+        <br> {% endif %} Total Try Jobs: {{ revision_level_number }}
+      </div>
+      <br>
+    {% endif %}
+
+    <div id="triage_flake">
+      {% if suspected_flake %}
+        <b>Feedback appreciated:</b>
+        {% if (user_info or {}).get('email') %} (if provided, it connects to your email for 30 days) {% endif %}
+          <table class="triage-table">
+            <tr>
+              <th class="triage-header" title="Type of Findit's result: Suspected Build or Culprit">Suspect Type</th>
+              <th class="triage-header" title="The build or revision where the test became flaky">Suspect Info</th>
+              <th class="triage-header">Feedback</th>
+            </tr>
+            <tr>
+              {% if (culprit.commit_position or culprit.git_hash) and culprit.url %}
+                <td class="triage-cell">Culprit</td>
+                <td class="triage-cell">
+                  <a href="{{culprit.url}}">{{culprit.commit_position or culprit.git_hash}}</a>
+                </td>
+              {% else %}
+              <td class="triage-cell">Suspected Build</td>
+              <td class="triage-cell">
+                <a href="https://luci-milo.appspot.com/buildbot/{{ master_name }}/{{ builder_name }}/{{ suspected_flake.build_number }}"
+                  target="_blank">{{ suspected_flake.build_number }}</a>
+                </a>
+              </td>
+            {% endif %}
+            <td class="triage-cell">
+              <input type="radio" name="triage-radio-button" value="2" {{ 'checked' if suspected_flake.triage_result==2 else '' }}>Correct &nbsp;&nbsp;
+              <input type="radio" name="triage-radio-button" value="1" {{ 'checked' if suspected_flake.triage_result==1 else '' }}>Incorrect
+            </td>
+          </tr>
+        </table>
+      {% endif %}
+      <div id="flake_result_triaged"></div>
+    </div>
+
+    {% if show_debug_info and triage_history %}
+      <br>
+      <b>Triage history:</b>
+      <div>
+        <table class="triage-table">
+          <tr>
+            <th class="triage-header">When</th>
+            <th class="triage-header">Who</th>
+            <th class="triage-header">Suspect Type</th>
+            <th class="triage-header">Suspect Info</th>
+            <th class="triage-header">Result</th>
+            <th class="triage-header">Analysis Version Number</th>
+          </tr>
+          <tbody>
+            {% for triage_record in triage_history %}
+              <tr>
+                <td class="triage-cell">{{ triage_record.triaged_time }}</td>
+                <td class="triage-cell">{{ triage_record.user_name }}</td>
+                {% if triage_record.suspect_info.culprit_revision %}
+                  <td class="triage-cell">Culprit</td>
+                  <td class="triage-cell">
+                    <a href="{{ triage_record.suspect_info.culprit_url }}">{{triage_record.suspect_info.culprit_commit_position or triage_record.suspect_info.culprit_revision}}</a>
+                  </td>
+                {% else %}
+                  <td class="triage-cell">Suspected Build</td>
+                  <td class="triage-cell">
+                    <a href="https://luci-milo.appspot.com/buildbot/{{ master_name }}/{{ builder_name }}/{{ triage_record.suspect_info.build_number }}"
+                      target="_blank">{{ triage_record.suspect_info.build_number }}</a>
+                    </a>
+                  </td>
+                {% endif %}
+                <td class="triage-cell">{{ triage_record.triage_result }}</td>
+                <td class="triage-cell">{{ triage_record.version_number }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+  </cats-app>
+</body>

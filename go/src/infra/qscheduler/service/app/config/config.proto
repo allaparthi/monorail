@@ -1,0 +1,56 @@
+// Copyright 2018 The LUCI Authors. All rights reserved.
+// Use of this source code is governed under the Apache License, Version 2.0
+// that can be found in the LICENSE file.
+
+syntax = "proto3";
+
+package qscheduler.config;
+
+import "google/protobuf/duration.proto";
+
+option go_package = "config";
+
+// Note: docstrings use generated go style variable names.
+
+// Config is the configuration data served by luci-config for this app.
+message Config {
+  string access_group = 1 [deprecated=true];
+
+  // QuotaScheduler contains QS-specific config information.
+  QuotaScheduler quota_scheduler = 2;
+
+  // Auth describes which access levels are granted to which groups.
+  Auth auth = 3;
+}
+
+message Auth {
+  // AdminGroup is the luci-auth group controlling access to the administrative
+  // endpoints of this server (the QSchedulerAdmin API).
+  //
+  // Members of this group also receive QSchedulerView access.
+  string admin_group = 1;
+
+  // SwarmingGroup is the luci-auth group controlling access to the scheduler
+  // endpoints of this server (the swarming.ExternalScheduler API).
+  string swarming_group = 2;
+
+  // ViewGroup is the luci-auth group controlloing access to the qscheduler view
+  // endpoints of the server (QSchedulerView API).
+  string view_group = 3;
+}
+
+// QuotaScheduler contains configuration information for the QuotaScheduler app.
+message QuotaScheduler {
+  // If specified (non-zero), this internal timeout is applied to all Notify and
+  // Assign requests served by the app.
+  google.protobuf.Duration handler_timeout = 1;
+
+  // If specified, the amount of time that a batch waits to collect requests
+  // before executing.
+  //
+  // If unspecified, defaults to 300ms.
+  //
+  // A higher value causes batches to be larger and hence more efficient in
+  // in terms of datastore operations, but adds overhead.
+  google.protobuf.Duration batch_construction_wait = 2;
+}

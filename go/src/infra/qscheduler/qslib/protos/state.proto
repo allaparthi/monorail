@@ -1,0 +1,123 @@
+// Copyright 2018 The LUCI Authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+syntax = "proto3";
+package protos;
+
+import "google/protobuf/timestamp.proto";
+
+// State represents the overall state of a quota scheduler worker pool,
+// account set, and task queue. This is represented separately from
+// configuration information. The state is expected to be updated frequently,
+// on each scheduler tick.
+//
+// The proto representation optimizes for a small binary-serialized size, rather
+// than human-friendliness, because the number of tasks that can be stored
+// in a single datastore entity (~1 MB) is one of the main scaling limits
+// of the quotascheduler.
+message SchedulerState {
+  // QueuedRequests is the set of Requests that are waiting to be assigned to a
+  // worker, keyed by request id.
+  map<string, TaskRequest> queued_requests = 1;
+
+  message Balance {
+    repeated float value = 1;
+  }
+
+  // Balance of all quota accounts for this pool, keyed by account id.
+  map<string, Balance> balances = 2;
+
+  // Workers that may run tasks, and their states, keyed by worker id.
+  map<string, Worker> workers = 3;
+
+  // LastUpdateTime is the last time at which UpdateTime was called on a scheduler,
+  // and corresponds to the when the quota account balances were updated.
+  google.protobuf.Timestamp last_update_time = 4;
+
+  // LabelMap maps label IDs to their string values.
+  //
+  // Requests and workers store labels by IDs.
+  map<uint64, string> label_map = 5;
+}
+
+// TaskRequestProto represents a requested task in the queue, and refers to the
+// quota account to run it against. This representation intentionally
+// excludes most of the details of a Swarming task request.
+message TaskRequest {
+  // AccountId is the id of the account that this request charges to.
+  string account_id = 1;
+
+  // EnqueueTime is the time at which the request was enqueued.
+  google.protobuf.Timestamp enqueue_time = 2;
+
+  // Deprecated provisionable_labels field.
+  reserved 3;
+
+  // ConfirmedTime is the most recent time at which the Request state was
+  // provided or confirmed by external authority (via a call to Enforce or
+  // AddRequest).
+  google.protobuf.Timestamp confirmed_time = 4;
+
+
+  // Deprecated base_labels field.
+  reserved 5;
+
+  // ProvisionableLabelIds represents the task's provisionable labels.
+  repeated uint64 provisionable_label_ids = 6;
+
+  // BaseLabelIds represents the task's base labels.
+  repeated uint64 base_label_ids = 7;
+
+  google.protobuf.Timestamp examined_time = 8;
+}
+
+// TaskRun represents a task that has been assigned to a worker and is
+// now running.
+message TaskRun {
+  // Cost is the total cost that has been incurred on this task while running.
+  repeated float cost = 1;
+
+  // Request is the request that this running task corresponds to.
+  TaskRequest request = 2;
+
+  // RequestId is the request id of the request that this running task
+  // corresponds to.
+  string request_id = 3;
+
+  // Priority is the current priority level of the running task.
+  int32 priority = 4;
+}
+
+// Worker represents a resource that can run 1 task at a time. This corresponds
+// to the swarming concept of a Bot. This representation considers only the
+// subset of Labels that are Provisionable (can be changed by running a task),
+// because the quota scheduler algorithm is expected to run against a pool of
+// otherwise homogenous workers.
+message Worker {
+  // Deprecated Labels field.
+  reserved 1;
+
+  // RunningTask is, if non-nil, the task that is currently running on the
+  // worker.
+  TaskRun running_task = 2;
+
+  // ConfirmedTime is the most recent time at which the Worker state was
+  // directly confirmed as idle by external authority (via a call to MarkIdle or
+  // NotifyRequest).
+  google.protobuf.Timestamp confirmed_time = 3;
+
+  // LabelIds represents the worker's labels.
+  repeated uint64 label_ids = 4;
+
+  google.protobuf.Timestamp modified_time = 5;
+}

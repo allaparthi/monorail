@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<script src="/test/alerts-data.js"></script>
+<script src="/bower_components/webcomponentsjs/webcomponents-loader.js"></script>
+<script src="/bower_components/web-component-tester/browser.js"></script>
+<link rel="import" href="/bower_components/iron-test-helpers/iron-test-helpers.html">
+<link rel="import" href="/elements/som-examine/som-examine.html">
+<test-fixture id="basic">
+  <template>
+    <som-examine></som-examine>
+  </template>
+</test-fixture>
+<script>
+(function() {
+  'use strict';
+
+  suite('basic tests', function() {
+    var element;
+
+    const INFRA_FAILURE = TEST_ALERTS.alerts[0];
+    const WEBKIT_TEST_FAILURE = TEST_ALERTS.alerts[4];
+
+    setup(function() {
+      element = fixture('basic');
+    });
+
+    test('sets test menu', function(done) {
+      element.alert = WEBKIT_TEST_FAILURE;
+      flush(function() {
+        assert.equal(element.selectedStep, 'tests');
+        assert.isFalse(element.hideTests);
+
+        let menu = element.$$('#testMenu');
+        assert.isDefined(menu);
+        assert.isDefined(menu.selectedItem);
+        done();
+      });
+    });
+
+    test('creates builder tabs', function(done) {
+      element.alert = WEBKIT_TEST_FAILURE;
+      flush(function() {
+        let tabs = element.$$('#builderTabs');
+        assert.isDefined(tabs);
+        assert.isDefined(tabs.selectedItem);
+        assert.equal(2, tabs.items.length);
+        done();
+      });
+    });
+
+    test('creates builder pages', function(done) {
+      element.alert = WEBKIT_TEST_FAILURE;
+      flush(function() {
+        let builderPages = element.$$('#builderPages');
+        assert.isDefined(builderPages);
+        assert.isDefined(builderPages.selectedItem);
+        assert.equal(2, builderPages.items.length);
+        builderPages.items.forEach(function(item) {
+          assert.isDefined(item.querySelector('iframe'));
+        });
+        done();
+      });
+    });
+
+    test('builder tab click selection', function(done) {
+      element.alert = WEBKIT_TEST_FAILURE;
+      flush(function() {
+        assert.equal('WebKit Linux:64889', element.selectedBuilder);
+        let tabs = element.$$('#builderTabs');
+        let secondTab = tabs.items[1];
+
+        // Click on the second tab.
+        secondTab.click();
+
+        assert.equal('WebKit Linux Trusty:12559', tabs.selected);
+
+        // The second page should be selected.
+        let builderPages = element.$$('#builderPages');
+        assert.equal('WebKit Linux Trusty:12559', builderPages.selected);
+
+        // And the data bound element property should be updated.
+        assert.equal('WebKit Linux Trusty:12559', element.selectedBuilder);
+        done();
+      });
+    });
+
+    test('builder tab property bound selection', function(done) {
+      element.alert = WEBKIT_TEST_FAILURE;
+      flush(function() {
+        assert.equal('WebKit Linux:64889', element.selectedBuilder);
+
+        // Set the data bound property.
+        element.selectedBuilder = 'WebKit Linux Trusty:12259';
+
+        // The second page should be selected.
+        let builderPages = element.$$('#builderPages');
+        assert.equal('WebKit Linux Trusty:12259', builderPages.selected);
+
+        // And the second tab should be selected.
+        let tabs = element.$$('#builderTabs');
+        assert.equal('WebKit Linux Trusty:12259', tabs.selected);
+        done();
+      });
+    });
+
+    test('webkit_test details', function(done) {
+      element.alert = WEBKIT_TEST_FAILURE;
+      flush(function() {
+        assert.equal('WebKit Linux:64889', element.selectedBuilder);
+        let tests = element.$$('som-webkit-tests');
+        assert(!tests.hidden);
+        assert.equal('WebKit Linux', tests.builder.name);
+        assert.equal(
+            'virtual/scalefactor150/fast/hidpi/static/data-suggestion-picker-appearance.html',
+            tests.testName);
+
+        done();
+      });
+    });
+
+  });
+})();
+</script>

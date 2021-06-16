@@ -1,0 +1,50 @@
+<dom-module id="som-header-styles">
+  <template>
+    <style>
+      h2, h4 {
+        font-weight: bold;
+        background-color: #f2f2f2;
+        border: 1px solid #ddd;
+        margin: 0.25em 0;
+        box-sizing: border-box;
+      }
+      h2 {
+        font-size: 16px;
+        line-height: 160%;
+        padding: 0.5em 8px 0.25em;
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+      }
+      h4 {
+        cursor: pointer;
+        padding: 0.5em 8px 0.25em;
+        margin-top: 0.5em;
+      }
+      h4 iron-icon,
+      .collapse-button iron-icon {
+        height: 16px;
+        width: 16px;
+      }
+      .collapse-button {
+        cursor: pointer;
+        font-size: 0.85em;
+        padding: 0.25em 8px;
+        margin: 0 4px;
+        border-radius: 5px;
+        -webkit-transition: background, border .3s ease;
+        transition: background, border .3s ease;
+        border: #ddd 1px solid;
+        background: #f8f8f8;
+      }
+      .collapse-button:hover {
+        background: #ddd;
+        border-color: #777;
+      }
+      .header-buttons {
+        font-weight: normal;
+      }
+    </style>
+  </template>
+</dom-module>
