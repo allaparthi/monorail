@@ -110,7 +110,7 @@ autolink_numeric_shorthand_hosts = [
 linkable_domains = {
   # Child account domain: [parent account domains]
   'dilettante.in': ['dilettante.in'],
-  'pointz.in': ['pointz.in'],
+  'google.com': ['google.com'],
 }
 
 
@@ -258,7 +258,7 @@ revision_url_format = 'https://crrev.com/{revnum}'
 # Users with emails in the "priviledged" domains do NOT get any advantage
 # but they do default their preference to show unobscured email addresses.
 priviledged_user_domains = [
-  'epifi.com',
+  'dilettante.in',
   ]
 
 # Branded domains:  Any UI GET to a project listed below on prod or staging
@@ -305,7 +305,7 @@ else:
     # The Google Cloud SQL databases to use.
     db_cloud_project = app_id
 
-  elif app_id == 'monorail-999999':
+  elif app_id == 'monorail-317205':
     send_all_email_to = None  # Deliver it to the intended users.
     # The Google Cloud SQL databases to use.
     db_cloud_project = app_id
@@ -327,7 +327,7 @@ physical_db_name_format = (db_cloud_project + ':' + db_region + ':%s')
 
 # preferred domains to display
 preferred_domains = {
-    'monorail-999999.appspot.com': 'monorail.pointz.in',
+    'monorail-317205.appspot.com': 'monorail.dilettante.in',
     'monorail-staging.appspot.com': 'bugs-staging.epifi.com',
     'monorail-dev.appspot.com': 'bugs-dev.epifi.com'}
 
@@ -367,7 +367,7 @@ classifier_spam_thresh = 0.995
 # Users with email addresses ending with these will not be subject to
 # spam filtering.
 spam_whitelisted_suffixes = (
-  '@epifi.com'
+  '@dilettante.in'
 )
 
 # These users default to getting a UX that is more similar to
@@ -377,7 +377,7 @@ corp_mode_user_groups = [
 
 # These email suffixes are allowed to create new alert bugs via email.
 alert_whitelisted_suffixes = (
-  '@epifi.com',
+  '@dilettante.in',
 )
 
 # The person who is notified if there is an unexpected problem in the alert
@@ -426,7 +426,7 @@ maximum_snapshot_period_end = 4294967295
 chart_query_max_rows = 10000
 
 # Client ID to use for loading the Google API client, gapi.js.
-if app_identity.get_application_id() == 'monorail-999999':
+if app_identity.get_application_id() == 'monorail-317205':
   gapi_client_id = (
     '679746765624-tqaakho939p2mc7eb65t4ecrj3gj08rt.apps.googleusercontent.com')
 else:
@@ -446,4 +446,4 @@ pubsub_topic_id = 'projects/%s/topics/issue-updates' % pubsub_project
 
 # All users in the following domains will have API access.
 # Important: the @ symbol must be included.
-api_allowed_email_domains = ('@epifi.com')
+api_allowed_email_domains = ('@dilettante.in')
